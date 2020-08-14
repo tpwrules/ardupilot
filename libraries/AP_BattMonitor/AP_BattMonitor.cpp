@@ -21,6 +21,7 @@
 #include "AP_BattMonitor_EFI.h"
 #include "AP_BattMonitor_INA2xx.h"
 #include "AP_BattMonitor_INA239.h"
+#include "AP_BattMonitor_INA3221.h"
 #include "AP_BattMonitor_LTC2946.h"
 #include "AP_BattMonitor_Torqeedo.h"
 #include "AP_BattMonitor_FuelLevel_Analog.h"
@@ -604,6 +605,32 @@ AP_BattMonitor::init()
                 drivers[instance] = NEW_NOTHROW AP_BattMonitor_Scripting(*this, state[instance], _params[instance]);
                 break;
 #endif // AP_BATTERY_SCRIPTING_ENABLED
+#if HAL_BATTMON_INA3221_ENABLED
+            case Type::INA3221_CH1:
+//                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
+                drivers[instance] = new AP_BattMonitor_INA3221(
+                    *this,
+                    state[instance],
+                    _params[instance],
+                    Type::INA3221_CH1);
+                break;
+            case Type::INA3221_CH2:
+//                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
+                drivers[instance] = new AP_BattMonitor_INA3221(
+                    *this,
+                    state[instance],
+                    _params[instance],
+                    Type::INA3221_CH2);
+                break;
+            case Type::INA3221_CH3:
+//                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
+                drivers[instance] = new AP_BattMonitor_INA3221(
+                    *this,
+                    state[instance],
+                    _params[instance],
+                    Type::INA3221_CH3);
+                break;
+#endif  // HAL_BATTMON_INA3221_ENABLED
             case Type::NONE:
             default:
                 break;

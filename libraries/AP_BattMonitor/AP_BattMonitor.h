@@ -70,6 +70,7 @@ class AP_BattMonitor
     friend class AP_BattMonitor_INA239;
     friend class AP_BattMonitor_LTC2946;
     friend class AP_BattMonitor_AD7091R5;
+    friend class AP_BattMonitor_INA3221;
 
     friend class AP_BattMonitor_Torqeedo;
     friend class AP_BattMonitor_FuelLevel_Analog;
@@ -107,15 +108,18 @@ public:
         GENERATOR_FUEL                 = 18,
         Rotoye                         = 19,
         // 20 was MPPT_PacketDigital
-        INA2XX                         = 21,
-        LTC2946                        = 22,
-        Torqeedo                       = 23,
-        FuelLevel_Analog               = 24,
+        INA2XX                     = 21,
+        LTC2946                    = 22,
+        Torqeedo                   = 23,
+        FuelLevel_Analog           = 24,
         Analog_Volt_Synthetic_Current  = 25,
         INA239_SPI                     = 26,
         EFI                            = 27,
         AD7091R5                       = 28,
         Scripting                      = 29,
+        INA3221_CH1                = 40,
+        INA3221_CH2                = 41,
+        INA3221_CH3                = 42,
     };
 
     FUNCTOR_TYPEDEF(battery_failsafe_handler_fn_t, void, const char *, const int8_t);
