@@ -143,6 +143,10 @@ local REPLY_TYPE = {NONE=0, ATTITUDE=1, POSITION_CONTROL=2, SPEED_CONTROL=3} -- 
 local expected_reply = REPLY_TYPE.NONE  -- currently expected reply type
 local expected_reply_ms = 0             -- system time that reply is first expected.  used for timeouts
 
+-- camera variables and definitions
+local camera_state                      -- camera state object
+local pic_number = 0                    -- number of next picture to take
+
 -- parsing status reporting variables
 local last_print_ms = 0                 -- system time that debug output was last printed
 local bytes_read = 0                    -- number of bytes read from gimbal
@@ -349,6 +353,12 @@ function init()
   else
     gcs:send_text(MAV_SEVERITY.CRITICAL, "DJIR: failed to connect to CAN bus")   
   end
+
+  -- get camera state object
+  camera_state = camera:get_state(0)
+  if not camera_state then
+    gcs:send_text(MAV_SEVERITY.CRITICAL, "DJIR: failed to get camera instance")
+  end
 end
 
 -- send serial message over CAN bus
@@ -549,6 +559,27 @@ function send_target_rates(roll_rate_degs, pitch_rate_degs, yaw_rate_degs)
   -- send bytes
   if send_msg(set_target_speed_msg) then
     expected_reply = REPLY_TYPE.SPEED_CONTROL
+    expected_reply_ms = millis()
+  else
+    expected_reply = REPLY_TYPE.NONE
+  end
+end
+
+function send_camera_command(command)
+  -- Field number                1     2     3     4     5     6     7     8     9    10    11    12    13    14    15    16     17    18    19    20
+  --                           SOF  LenL  LenH CmdTyp  Enc   RES   RES   RES  SeqL  SeqH  CrcL  CrcH CmdSet CmdId CamL  CamH, CRC32 CRC32 CRC32 CRC32
+  local camera_command_msg = {0xAA, 0x14, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x0D, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
+
+  -- encode the camera command number into the pakcet
+  camera_command_msg[15] = lowbyte(command)
+  camera_command_msg[16] = highbyte(command)
+
+  -- update_msg_seq_and_crc
+  update_msg_seq_and_crc(camera_command_msg)
+
+  -- send bytes
+  if send_msg(camera_command_msg) then
+    expected_reply = REPLY_TYPE.SPEED_CONTROL -- todo lol
     expected_reply_ms = millis()
   else
     expected_reply = REPLY_TYPE.NONE
@@ -770,6 +801,19 @@ function update()
       return update, UPDATE_INTERVAL_MS
     end
     return update, UPDATE_INTERVAL_MS
+  end
+
+  -- take picture
+  if camera_state then
+    camera_state = camera:get_state(0)
+
+    local curr_pic_number = camera_state:take_pic_incr()
+    if curr_pic_number and curr_pic_number ~= pic_number then
+      gcs:send_text(MAV_SEVERITY.INFO, "pic! "..curr_pic_number)
+      send_camera_command(0x0001) -- shutter command
+      pic_number = curr_pic_number
+      return update, UPDATE_INTERVAL_MS
+    end
   end
 
   return update, UPDATE_INTERVAL_MS
