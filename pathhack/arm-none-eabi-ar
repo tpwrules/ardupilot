@@ -1,0 +1,2 @@
+#!/bin/sh
+exec arm-none-eabi-gcc-ar "$@"
