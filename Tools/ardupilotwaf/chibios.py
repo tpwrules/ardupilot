@@ -509,6 +509,7 @@ def load_env_vars(env):
         else:
             env[k] = v
             print("env set %s=%s" % (k, v))
+    env.CHIBIOS_BUILD_FLAGS += ' USE_LTO=yes'
     if env.DEBUG or env.DEBUG_SYMBOLS:
         env.CHIBIOS_BUILD_FLAGS += ' ENABLE_DEBUG_SYMBOLS=yes'
     if env.ENABLE_ASSERTS:
