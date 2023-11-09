@@ -14,3 +14,4 @@ int lua_dirlist(lua_State *L);
 int lua_removefile(lua_State *L);
 int SRV_Channels_get_safety_state(lua_State *L);
 int lua_get_PWMSource(lua_State *L);
+int lua_odid_mav_inject(lua_State *L);
