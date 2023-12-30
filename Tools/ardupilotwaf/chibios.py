@@ -733,12 +733,11 @@ def build(bld):
     # implement anywhere (the FILE* functions). This allows us to get link
     # errors if we accidentially try to use one of those functions either
     # directly or via another libc call
-    wraplist = ['sscanf', 'fprintf', 'snprintf', 'vsnprintf','vasprintf','asprintf','vprintf','scanf',
-                'fiprintf','printf',
+    wraplist = [
                 'fopen', 'fflush', 'fwrite', 'fread', 'fputs', 'fgets',
                 'clearerr', 'fseek', 'ferror', 'fclose', 'tmpfile', 'getc', 'ungetc', 'feof',
                 'ftell', 'freopen', 'remove', 'vfprintf', 'fscanf',
                 '_gettimeofday', '_times', '_times_r', '_gettimeofday_r', 'time', 'clock',
                 '_sbrk', '_sbrk_r', '_malloc_r', '_calloc_r', '_free_r']
-    #for w in wraplist:
-    #    bld.env.LINKFLAGS += ['-Wl,--wrap,%s' % w]
+    for w in wraplist:
+        bld.env.LINKFLAGS += ['-Wl,--wrap,%s' % w]

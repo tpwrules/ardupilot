@@ -38,7 +38,7 @@
 extern const AP_HAL::HAL& hal;
 #endif
 
-int __wrap_snprintf(char *str, size_t size, const char *fmt, ...)
+int snprintf(char *str, size_t size, const char *fmt, ...)
 {
    va_list arg;
    int done;
@@ -54,7 +54,7 @@ int __wrap_snprintf(char *str, size_t size, const char *fmt, ...)
    return done;
 }
 
-int __wrap_vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
+int vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 {
 #ifdef HAL_BOOTLOADER_BUILD
     return chvsnprintf(str, size, fmt, ap);
@@ -63,7 +63,7 @@ int __wrap_vsnprintf(char *str, size_t size, const char *fmt, va_list ap)
 #endif
 }
 
-int __wrap_vasprintf(char **strp, const char *fmt, va_list ap)
+int vasprintf(char **strp, const char *fmt, va_list ap)
 {
     int len = vsnprintf(NULL, 0, fmt, ap);
     if (len <= 0) {
@@ -78,7 +78,7 @@ int __wrap_vasprintf(char **strp, const char *fmt, va_list ap)
     return len;
 }
 
-int __wrap_asprintf(char **strp, const char *fmt, ...)
+int asprintf(char **strp, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
@@ -87,7 +87,7 @@ int __wrap_asprintf(char **strp, const char *fmt, ...)
     return ret;
 }
 
-int __wrap_vprintf(const char *fmt, va_list arg)
+int vprintf(const char *fmt, va_list arg)
 {
 #ifdef HAL_STDOUT_SERIAL
   return chvprintf((BaseSequentialStream*)&HAL_STDOUT_SERIAL, fmt, arg);
@@ -103,7 +103,7 @@ int __wrap_vprintf(const char *fmt, va_list arg)
 // hook to allow for printf() on systems without HAL_STDOUT_SERIAL
 int (*vprintf_console_hook)(const char *fmt, va_list arg) = vprintf;
 
-int __wrap_printf(const char *fmt, ...)
+int printf(const char *fmt, ...)
 {
 #ifndef HAL_NO_PRINTF
    va_list arg;
@@ -124,7 +124,7 @@ int __wrap_printf(const char *fmt, ...)
   we assume stdout or stderr. For output to files use the AP_Fileystem
   posix_compat headers
  */
-int __wrap_fprintf(void *f, const char *fmt, ...)
+int fprintf(void *f, const char *fmt, ...)
 {
 #ifndef HAL_NO_PRINTF
    va_list arg;
@@ -142,7 +142,7 @@ int __wrap_fprintf(void *f, const char *fmt, ...)
 }
 
 //just a stub for scanf
-int __wrap_scanf(const char *fmt, ...)
+int scanf(const char *fmt, ...)
 {
     (void)fmt;
     return 0;
@@ -150,6 +150,6 @@ int __wrap_scanf(const char *fmt, ...)
 
 extern "C" {
     // empty function fiprintf(), saves flash space for unused code path
-    int __wrap_fiprintf(const char *fmt, ...);
-    int __wrap_fiprintf(const char *fmt, ...) { return -1; }
+    int fiprintf(const char *fmt, ...);
+    int fiprintf(const char *fmt, ...) { return -1; }
 }
