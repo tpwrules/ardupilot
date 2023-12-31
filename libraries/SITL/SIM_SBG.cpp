@@ -203,14 +203,15 @@ void SBG::update(void)
     }
 
     uint32_t now = AP_HAL::micros();
-    if (now - last_pkt1_us >= 5000) { // 200Hz
-        last_pkt1_us = now;
+    // send in a loop to avoid a packet deficit over time which slows main loop
+    while (now - last_pkt1_us >= 5000) { // 200Hz
         send_packet1();
+        last_pkt1_us += 5000;
     }
 
-    if (now - last_pkt2_us >= 200000) { // 5Hz
-        last_pkt2_us = now;
+    while (now - last_pkt2_us >= 200000) { // 5Hz
         send_packet2();
+        last_pkt2_us += 200000;
     }
 
     // Strictly we should send this in responce to the request
