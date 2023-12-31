@@ -32,141 +32,148 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
 #include <AP_SerialManager/AP_SerialManager.h>
-#include <AP_Common/NMEA.h>
 #include <stdio.h>
 #include <AP_BoardConfig/AP_BoardConfig.h>
 
 extern const AP_HAL::HAL &hal;
 
-/*
-  header for pre-configured 50Hz data
-  assumes the following config for VN-300:
-    $VNWRG,75,3,8,34,072E,0106,0612*0C
+#define SBG_ECOM_SYNC_1 (0xFF)
+#define SBG_ECOM_SYNC_2 (0x5A)
+#define SBG_ECOM_ETX (0x33)
+#define SBG_ECOM_MAX_PACKET_SIZE (4095)
+#define SBG_ECOM_CLASS_LOG_ECOM_0 (0)
 
-    0x34: Groups 3,5,6
-    Group 3 (IMU):
-        0x072E:
-            UncompMag
-            UncompAccel
-            UncompGyro
-            Pres
-            Mag
-            Accel
-            AngularRate
-    Group 5 (Attitude):
-        0x0106:
-            YawPitchRoll
-            Quaternion
-            YprU
-    Group 6 (INS):
-        0x0612:
-            PosLLa
-            VelNed
-            PosU
-            VelU
+// expected at 200Hz
+#define SBG_ECOM_LOG_EKF_EULER (6)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    float roll_rad;
+    float pitch_rad;
+    float yaw_rad;
+    float roll_acc_rad;
+    float pitch_acc_rad;
+    float yaw_acc_rad;
+    uint32_t solution_status;
+} SBGEKFEuler;
 
-*/
-static const uint8_t vn_pkt1_header[] { 0x34, 0x2E, 0x07, 0x06, 0x01, 0x12, 0x06 };
-#define VN_PKT1_LENGTH 170 // includes header and CRC
+// expected at 200Hz
+#define SBG_ECOM_LOG_EKF_NAV (8)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    float vel_n_ms; // meters per second
+    float vel_e_ms;
+    float vel_d_ms;
+    float vel_n_acc_ms; // meters per second
+    float vel_e_acc_ms;
+    float vel_d_acc_ms;
+    double latitude_deg;
+    double longitude_deg;
+    double altitude_m;
+    float undulation_m;
+    float latitude_acc_m;
+    float longitude_acc_m;
+    float altitude_acc_m;
+    uint32_t solution_status;
+} SBGEKFNav;
 
-struct PACKED VN_packet1 {
-    float uncompMag[3];
-    float uncompAccel[3];
-    float uncompAngRate[3];
-    float pressure;
-    float mag[3];
-    float accel[3];
-    float gyro[3];
-    float ypr[3];
-    float quaternion[4];
-    float yprU[3];
-    double positionLLA[3];
-    float velNED[3];
-    float posU;
-    float velU;
-};
+// expected at 5Hz ("on new data")
+#define SBG_ECOM_LOG_GPS1_POS (14)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint32_t pos_status;
+    uint32_t time_of_week_ms;
+    double latitude_deg;
+    double longitude_deg;
+    double altitude_m;
+    float undulation_m;
+    float latitude_acc_m;
+    float longitude_acc_m;
+    float altitude_acc_m;
+    uint8_t num_satellites;
+    uint16_t base_station_id;
+    uint16_t differential_age_cs; // centiseconds
+} SBGGPS1Pos;
 
-// check packet size for 4 groups
-static_assert(sizeof(VN_packet1)+2+3*2+2 == VN_PKT1_LENGTH, "incorrect VN_packet1 length");
+// expected at 5Hz ("on new data")
+#define SBG_ECOM_LOG_GPS1_VEL (13)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint32_t vel_status;
+    uint32_t time_of_week_ms;
+    float vel_n_ms; // meters per second
+    float vel_e_ms;
+    float vel_d_ms;
+    float vel_n_acc_ms; // meters per second
+    float vel_e_acc_ms;
+    float vel_d_acc_ms;
+    float course_deg;
+    float course_acc_deg;
+} SBGGPS1Vel;
 
-/*
-  header for pre-configured 5Hz data
-  assumes the following VN-300 config:
-    $VNWRG,76,3,80,4E,0002,0010,20B8,0018*63
+// expected at 10Hz
+#define SBG_ECOM_LOG_UTC_TIME (2)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint16_t clock_status;
+    uint16_t year;
+    uint8_t month;
+    uint8_t day;
+    uint8_t hour;
+    uint8_t minute;
+    uint8_t second;
+    uint32_t nanosecond;
+    uint32_t gps_tow_ms;
+} SBGUTCTime;
 
-    0x4E: Groups 2,3,4,7
-    Group 2 (Time):
-        0x0002:
-            TimeGps
-    Group 3 (IMU):
-        0x0010:
-            Temp
-    Group 4 (GPS1):
-        0x20B8:
-            NumSats
-            Fix
-            PosLLa
-            VelNed
-            DOP
-    Group 7 (GPS2):
-        0x0018:
-            NumSats
-            Fix
-*/
-static const uint8_t vn_pkt2_header[] { 0x4e, 0x02, 0x00, 0x10, 0x00, 0xb8, 0x20, 0x18, 0x00 };
-#define VN_PKT2_LENGTH 92 // includes header and CRC
+// expected at 200Hz ("on new data")
+#define SBG_ECOM_LOG_IMU_SHORT (44)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint16_t imu_status;
+    int32_t delta_vel_x; // 1<<20 == 1m/s^2
+    int32_t delta_vel_y;
+    int32_t delta_vel_z;
+    int32_t delta_angle_x; // 1<<26 == 1rad/s
+    int32_t delta_angle_y;
+    int32_t delta_angle_z;
+    int16_t temperature; // 1<<8 == 1degC
+} SBGIMUShort;
 
-struct PACKED VN_packet2 {
-    uint64_t timeGPS;
-    float temp;
-    uint8_t numGPS1Sats;
-    uint8_t GPS1Fix;
-    double GPS1posLLA[3];
-    float GPS1velNED[3];
-    float GPS1DOP[7];
-    uint8_t numGPS2Sats;
-    uint8_t GPS2Fix;
-};
+// expected at 50Hz
+#define SBG_ECOM_LOG_MAG (4)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint16_t mag_status;
+    float mag_x; // "arbitrary units", quite possibly gauss
+    float mag_y;
+    float mag_z;
+    float accel_x_ms2; // m/s^2
+    float accel_y_ms2;
+    float accel_z_ms2;
+} SBGMag;
 
-// check packet size for 4 groups
-static_assert(sizeof(VN_packet2)+2+4*2+2 == VN_PKT2_LENGTH, "incorrect VN_packet2 length");
+// expected at 50Hz ("on new data")
+#define SBG_ECOM_LOG_AIR_DATA (36)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint16_t airdata_status;
+    float pressure_abs_pa; // barometer
+    float altitude_m;
+    float pressure_diff_pa; // airspeed
+    float true_airspeed_ms; // meters per second
+    float air_temperature_degC;
+} SBGAirData;
 
-/*
-  assumes the following VN-300 config:
-    $VNWRG,75,3,80,14,073E,0004*66
-
-  Alternate first packet for VN-100
-    0x14: Groups 3, 5
-        Group 3 (IMU):
-            0x073E:
-                UncompMag
-                UncompAccel
-                UncompGyro
-                Temp
-                Pres
-                Mag
-                Accel
-                Gyro
-        Group 5 (Attitude):
-            0x0004:
-                Quaternion
-*/
-static const uint8_t vn_100_pkt1_header[] { 0x14, 0x3E, 0x07, 0x04, 0x00 };
-#define VN_100_PKT1_LENGTH 104 // includes header and CRC
-
-struct PACKED VN_100_packet1 {
-    float uncompMag[3];
-    float uncompAccel[3];
-    float uncompAngRate[3];
-    float temp;
-    float pressure;
-    float mag[3];
-    float accel[3];
-    float gyro[3];
-    float quaternion[4];
-};
-
-static_assert(sizeof(VN_100_packet1)+2+2*2+2 == VN_100_PKT1_LENGTH, "incorrect VN_100_packet1 length");
+typedef struct {
+    SBGEKFEuler ekf_euler;
+    SBGEKFNav ekf_nav;
+    SBGGPS1Pos gps1_pos;
+    SBGGPS1Vel gps1_vel;
+    SBGUTCTime utc_time;
+    SBGIMUShort imu_short;
+    SBGMag mag;
+    SBGAirData air_data;
+} SBGPacketSet;
 
 // constructor
 AP_ExternalAHRS_SBG::AP_ExternalAHRS_SBG(AP_ExternalAHRS *_frontend,
@@ -182,14 +189,15 @@ AP_ExternalAHRS_SBG::AP_ExternalAHRS_SBG(AP_ExternalAHRS *_frontend,
     baudrate = sm.find_baudrate(AP_SerialManager::SerialProtocol_AHRS, 0);
     port_num = sm.find_portnum(AP_SerialManager::SerialProtocol_AHRS, 0);
 
-    bufsize = MAX(MAX(VN_PKT1_LENGTH, VN_PKT2_LENGTH), VN_100_PKT1_LENGTH);
-    pktbuf = new uint8_t[bufsize];
-    last_pkt1 = new VN_packet1;
-    last_pkt2 = new VN_packet2;
+    data_buf = new uint8_t[SBG_ECOM_MAX_PACKET_SIZE];
+    packet_buf = new SBGPacketSet;
 
-    if (!pktbuf || !last_pkt1 || !last_pkt2) {
+    if (!data_buf || !packet_buf) {
         AP_BoardConfig::allocation_error("SBG ExternalAHRS");
     }
+
+    // ensure timestamps are clear
+    memset(packet_buf, 0, sizeof(SBGPacketSet));
 
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_SBG::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
         AP_HAL::panic("SBG Failed to start ExternalAHRS update thread");
@@ -201,7 +209,6 @@ AP_ExternalAHRS_SBG::AP_ExternalAHRS_SBG(AP_ExternalAHRS *_frontend,
   check the UART for more data
   returns true if the function should be called again straight away
  */
-#define SYNC_BYTE 0xFA
 bool AP_ExternalAHRS_SBG::check_uart()
 {
     if (!setup_complete) {
@@ -210,223 +217,103 @@ bool AP_ExternalAHRS_SBG::check_uart()
     WITH_SEMAPHORE(state.sem);
     // ensure we own the uart
     uart->begin(0);
+    // receive as much data as will fit
     uint32_t n = uart->available();
     if (n == 0) {
         return false;
     }
-    if (pktoffset < bufsize) {
-        ssize_t nread = uart->read(&pktbuf[pktoffset], MIN(n, unsigned(bufsize-pktoffset)));
-        if (nread <= 0) {
+    uint16_t buf_room = SBG_ECOM_MAX_PACKET_SIZE - buf_len;
+    if (buf_room) {
+        ssize_t bytes_read = uart->read(&data_buf[buf_len], MIN(n, buf_room));
+        if (bytes_read <= 0) {
             return false;
         }
-        pktoffset += nread;
+        buf_len += bytes_read;
     }
 
-    bool match_header1 = false;
-    bool match_header2 = false;
-    bool match_header3 = false;
+    bool valid;
+    uint16_t consume = unframe_packet(&data_buf[0], buf_len, valid);
 
-    if (pktbuf[0] != SYNC_BYTE) {
-        goto reset;
-    }
-
-    if (type == TYPE::VN_300) {
-        match_header1 = (0 == memcmp(&pktbuf[1], vn_pkt1_header, MIN(sizeof(vn_pkt1_header), unsigned(pktoffset-1))));
-        match_header2 = (0 == memcmp(&pktbuf[1], vn_pkt2_header, MIN(sizeof(vn_pkt2_header), unsigned(pktoffset-1))));
-    } else {
-        match_header3 = (0 == memcmp(&pktbuf[1], vn_100_pkt1_header, MIN(sizeof(vn_100_pkt1_header), unsigned(pktoffset-1))));
-    }
-    if (!match_header1 && !match_header2 && !match_header3) {
-        goto reset;
-    }
-
-    if (match_header1 && pktoffset >= VN_PKT1_LENGTH) {
-        uint16_t crc = crc16_ccitt(&pktbuf[1], VN_PKT1_LENGTH-1, 0);
-        if (crc == 0) {
-            // got pkt1
-            process_packet1(&pktbuf[sizeof(vn_pkt1_header)+1]);
-            memmove(&pktbuf[0], &pktbuf[VN_PKT1_LENGTH], pktoffset-VN_PKT1_LENGTH);
-            pktoffset -= VN_PKT1_LENGTH;
-        } else {
-            goto reset;
-        }
-    } else if (match_header2 && pktoffset >= VN_PKT2_LENGTH) {
-        uint16_t crc = crc16_ccitt(&pktbuf[1], VN_PKT2_LENGTH-1, 0);
-        if (crc == 0) {
-            // got pkt2
-            process_packet2(&pktbuf[sizeof(vn_pkt2_header)+1]);
-            memmove(&pktbuf[0], &pktbuf[VN_PKT2_LENGTH], pktoffset-VN_PKT2_LENGTH);
-            pktoffset -= VN_PKT2_LENGTH;
-        } else {
-            goto reset;
-        }
-    } else if (match_header3 && pktoffset >= VN_100_PKT1_LENGTH) {
-        uint16_t crc = crc16_ccitt(&pktbuf[1], VN_100_PKT1_LENGTH-1, 0);
-        if (crc == 0) {
-            // got VN-100 pkt1
-            process_packet_VN_100(&pktbuf[sizeof(vn_100_pkt1_header)+1]);
-            memmove(&pktbuf[0], &pktbuf[VN_100_PKT1_LENGTH], pktoffset-VN_100_PKT1_LENGTH);
-            pktoffset -= VN_100_PKT1_LENGTH;
-        } else {
-            goto reset;
+    if (valid) {
+        uint8_t msg_id = data_buf[2];
+        uint8_t msg_class = data_buf[3];
+        uint8_t msg_len = consume - 9;
+        if (msg_class == SBG_ECOM_CLASS_LOG_ECOM_0) { // only class we care about
+            uint16_t expected_len = process_message(msg_id, &data_buf[6], msg_len);
+            if (expected_len != msg_len) {
+                printf("SBG: msg id %u expected %u got %u bytes\n",
+                    msg_id, expected_len, msg_len);
+            }
         }
     }
-    return true;
 
-reset:
-    uint8_t *p = (uint8_t *)memchr(&pktbuf[1], SYNC_BYTE, pktoffset-1);
+    if (consume) {
+        uint16_t remaining = buf_len - consume;
+        if (remaining) {
+            memmove(&data_buf[0], &data_buf[consume], remaining);
+        }
+        buf_len = remaining;
+    }
+
+    // try to process again if we've consumed something and still have more
+    return consume > 0 && buf_len > 0;
+}
+
+// valid is true if data points to a valid packet.
+// returns amount of data to consume/packet length
+uint16_t AP_ExternalAHRS_SBG::unframe_packet(const uint8_t *data, uint16_t len, bool &valid)
+{
+    valid = false;
+
+    // sync 1 + sync 2 + id + class + length + data + crc + ETX
+    //      1 +      1 +  1 +     1 +      2 +    0 +   2 +   1
+    if (len < 9) { // bail if not enough data for a complete (empty) packet
+        return 0;
+    }
+
+    // get message metadata
+    uint16_t msg_len = data[4] | (data[5] << 8);
+    uint16_t msg_crc = data[6+msg_len] | (data[7+msg_len] << 8);
+    uint16_t packet_len = 9 + msg_len;
+
+    // validate sync markers
+    if ((data[0] != SBG_ECOM_SYNC_1) || (data[1] != SBG_ECOM_SYNC_2)) {
+        goto search;
+    }
+    // validate message length (instead of packet length to avoid overflows)
+    if (msg_len > SBG_ECOM_MAX_PACKET_SIZE-9) {
+        goto search;
+    }
+
+    if (len < packet_len) { // bail if not enough data for complete packet
+        return 0;
+    }
+
+    // validate footer and CRC
+    if (data[8+msg_len] != SBG_ECOM_ETX) {
+        goto search;
+    }
+    if (msg_crc != crc16_ccitt_r(&data[2], 4+msg_len, 0, 0)) {
+        goto search;
+    }
+
+    valid = true; // message appears valid, awesome
+    return packet_len; // consume it
+
+search:
+    // search for a sync marker and consume up to it
+    uint8_t *p = (uint8_t *)memchr(&data[1], SBG_ECOM_SYNC_1, len-1);
     if (p) {
-        uint8_t newlen = pktoffset - (p - pktbuf);
-        memmove(&pktbuf[0], p, newlen);
-        pktoffset = newlen;
+        return len - (p - data);
     } else {
-        pktoffset = 0;
+        return len;
     }
-    return true;
-}
-
-// Send command to read given register number and wait for response
-// Only run from thread! This blocks until a response is received
-#define READ_REQUEST_RETRY_MS 500
-void AP_ExternalAHRS_SBG::wait_register_responce(const uint8_t register_num)
-{
-    nmea.register_number = register_num;
-
-    uint32_t request_sent = 0;
-    while (true) {
-        hal.scheduler->delay(1);
-
-        const uint32_t now = AP_HAL::millis();
-        if (now - request_sent > READ_REQUEST_RETRY_MS) {
-            // Send request to read
-            nmea_printf(uart, "$%s%u", "VNRRG,", nmea.register_number);
-            request_sent = now;
-        }
-
-        int16_t nbytes = uart->available();
-        while (nbytes-- > 0) {
-            char c = uart->read();
-            if (decode(c)) {
-                return;
-            }
-        }
-    }
-}
-
-// add a single character to the buffer and attempt to decode
-// returns true if a complete sentence was successfully decoded
-bool AP_ExternalAHRS_SBG::decode(char c)
-{
-    switch (c) {
-    case ',':
-        // end of a term, add to checksum
-        nmea.checksum ^= c;
-        FALLTHROUGH;
-    case '\r':
-    case '\n':
-    case '*':
-    {
-        if (nmea.sentence_done) {
-            return false;
-        }
-        if (nmea.term_is_checksum) {
-            nmea.sentence_done = true;
-            uint8_t checksum = 16 * char_to_hex(nmea.term[0]) + char_to_hex(nmea.term[1]);
-            return ((checksum == nmea.checksum) && nmea.sentence_valid);
-        }
-
-        // null terminate and decode latest term
-        nmea.term[nmea.term_offset] = 0;
-        if (nmea.sentence_valid) {
-            nmea.sentence_valid = decode_latest_term();
-        }
-
-        // move onto next term
-        nmea.term_number++;
-        nmea.term_offset = 0;
-        nmea.term_is_checksum = (c == '*');
-        return false;
-    }
-
-    case '$': // sentence begin
-        nmea.sentence_valid = true;
-        nmea.term_number = 0;
-        nmea.term_offset = 0;
-        nmea.checksum = 0;
-        nmea.term_is_checksum = false;
-        nmea.sentence_done = false;
-        return false;
-    }
-
-    // ordinary characters are added to term
-    if (nmea.term_offset < sizeof(nmea.term) - 1) {
-        nmea.term[nmea.term_offset++] = c;
-    }
-    if (!nmea.term_is_checksum) {
-        nmea.checksum ^= c;
-    }
-
-    return false;
-}
-
-// decode the most recently consumed term
-// returns true if new sentence has just passed checksum test and is validated
-bool AP_ExternalAHRS_SBG::decode_latest_term()
-{
-    switch (nmea.term_number) {
-        case 0:
-            if (strcmp(nmea.term, "VNRRG") != 0) {
-                return false;
-            }
-            break;
-
-        case 1:
-            if (nmea.register_number != strtoul(nmea.term, nullptr, 10)) {
-                return false;
-            }
-            break;
-
-        case 2:
-            strncpy(model_name, nmea.term, sizeof(model_name));
-            break;
-
-        default:
-            return false;
-    }
-    return true;
 }
 
 void AP_ExternalAHRS_SBG::update_thread()
 {
     // Open port in the thread
     uart->begin(baudrate, 1024, 512);
-
-    // Reset and wait for module to reboot
-    // VN_100 takes 1.25 seconds
-    //nmea_printf(uart, "$VNRST");
-    //hal.scheduler->delay(3000);
-
-    // Stop NMEA Async Outputs (this UART only)
-    nmea_printf(uart, "$VNWRG,6,0");
-
-    // Detect version
-    // Read Model Number Register, ID 1
-    wait_register_responce(1);
-
-    // Setup for messages respective model types (on both UARTs)
-    if (strncmp(model_name, "VN-100", 6) == 0) {
-        // VN-100
-        type = TYPE::VN_100;
-
-        // This assumes unit is still configured at its default rate of 800hz
-        nmea_printf(uart, "$VNWRG,75,3,%u,14,073E,0004", unsigned(800/get_rate()));
-
-    } else {
-        // Default to Setup for VN-300 series
-        // This assumes unit is still configured at its default rate of 400hz
-        nmea_printf(uart, "$VNWRG,75,3,%u,34,072E,0106,0612", unsigned(400/get_rate()));
-        nmea_printf(uart, "$VNWRG,76,3,80,4E,0002,0010,20B8,0018");
-    }
 
     setup_complete = true;
     while (true) {
@@ -438,150 +325,248 @@ void AP_ExternalAHRS_SBG::update_thread()
 
 const char* AP_ExternalAHRS_SBG::get_name() const
 {
-    if (setup_complete) {
-        return model_name;
-    }
-    return nullptr;
+    return "SBG";
 }
 
-/*
-  process packet type 1
- */
-void AP_ExternalAHRS_SBG::process_packet1(const uint8_t *b)
+uint16_t AP_ExternalAHRS_SBG::process_message(uint8_t id, const uint8_t *data, uint16_t len)
 {
-    const struct VN_packet1 &pkt1 = *(struct VN_packet1 *)b;
-    const struct VN_packet2 &pkt2 = *last_pkt2;
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
 
-    last_pkt1_ms = AP_HAL::millis();
-    *last_pkt1 = pkt1;
+    // all supported messages have a timestamp as the first 4 bytes
+    uint32_t timestamp_us = 0;
+    if (len >= 4) {
+        timestamp_us = data[0] | (data[1]<<8) | (data[2]<<16) | (data[3]<<24);
+    }
 
-    const bool use_uncomp = false;
+    // for each message we check if it's the expected size and if it's actually
+    // different (as something in the chain duplicates bits of data...). then
+    // we store the new data and process it if appropriate as some messages
+    // come in groups and we want the whole group before we forward it to the
+    // rest of the system
+    switch (id) {
+    case SBG_ECOM_LOG_EKF_EULER:
+        if (len != sizeof(SBGEKFEuler)) { return sizeof(SBGEKFEuler); }
+        if (timestamp_us == packet->ekf_euler.timestamp_us) { break; }
+        memcpy(&packet->ekf_euler, data, sizeof(SBGEKFEuler));
+
+        // we have both the euler and the nav data
+        if (timestamp_us == packet->ekf_nav.timestamp_us) {
+            update_state_ekf();
+        }
+        break;
+
+    case SBG_ECOM_LOG_EKF_NAV:
+        if (len != sizeof(SBGEKFNav)) { return sizeof(SBGEKFNav); }
+        if (timestamp_us == packet->ekf_nav.timestamp_us) { break; }
+        memcpy(&packet->ekf_nav, data, sizeof(SBGEKFNav));
+
+        // we have both the euler and the nav data
+        if (timestamp_us == packet->ekf_euler.timestamp_us) {
+            update_state_ekf();
+        }
+        break;
+
+    case SBG_ECOM_LOG_GPS1_POS:
+        if (len != sizeof(SBGGPS1Pos)) { return sizeof(SBGGPS1Pos); }
+        if (timestamp_us == packet->gps1_pos.timestamp_us) { break; }
+        memcpy(&packet->gps1_pos, data, sizeof(SBGGPS1Pos));
+
+        // we have position, velocity, and UTC (for time of week) data
+        if ((timestamp_us == packet->gps1_vel.timestamp_us) &&
+                (timestamp_us == packet->utc_time.timestamp_us)) {
+            update_state_gps();
+        }
+        break;
+
+    case SBG_ECOM_LOG_GPS1_VEL:
+        if (len != sizeof(SBGGPS1Vel)) { return sizeof(SBGGPS1Vel); }
+        if (timestamp_us == packet->gps1_vel.timestamp_us) { break; }
+        memcpy(&packet->gps1_vel, data, sizeof(SBGGPS1Vel));
+
+        // we have position, velocity, and UTC (for time of week) data
+        if ((timestamp_us == packet->gps1_pos.timestamp_us) &&
+                (timestamp_us == packet->utc_time.timestamp_us)) {
+            update_state_gps();
+        }
+        break;
+
+    case SBG_ECOM_LOG_UTC_TIME:
+        if (len != sizeof(SBGUTCTime)) { return sizeof(SBGUTCTime); }
+        if (timestamp_us == packet->utc_time.timestamp_us) { break; }
+        memcpy(&packet->utc_time, data, sizeof(SBGUTCTime));
+
+        // we have position, velocity, and UTC (for time of week) data
+        if ((timestamp_us == packet->gps1_pos.timestamp_us) &&
+                (timestamp_us == packet->gps1_vel.timestamp_us)) {
+            update_state_gps();
+        }
+        break;
+
+    case SBG_ECOM_LOG_IMU_SHORT:
+        if (len != sizeof(SBGIMUShort)) { return sizeof(SBGIMUShort); }
+        if (timestamp_us == packet->imu_short.timestamp_us) { break; }
+        memcpy(&packet->imu_short, data, sizeof(SBGIMUShort));
+
+        update_state_imu();
+        break;
+
+    case SBG_ECOM_LOG_MAG:
+        if (len != sizeof(SBGMag)) { return sizeof(SBGMag); }
+        if (timestamp_us == packet->mag.timestamp_us) { break; }
+        memcpy(&packet->mag, data, sizeof(SBGMag));
+
+        update_state_mag();
+        break;
+
+    case SBG_ECOM_LOG_AIR_DATA:
+        if (len != sizeof(SBGAirData)) { return sizeof(SBGAirData); }
+        if (timestamp_us == packet->air_data.timestamp_us) { break; }
+        memcpy(&packet->air_data, data, sizeof(SBGAirData));
+
+        update_state_baro();
+        break;
+
+    default:
+        break; // just say we got what we expected
+    }
+
+    last_packet_ms = AP_HAL::millis(); // alive and receiving good data
+
+    return len; // we got what we expected
+}
+
+void AP_ExternalAHRS_SBG::update_state_ekf(void)
+{
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+    const SBGEKFEuler &euler = packet->ekf_euler;
+    const SBGEKFNav &nav = packet->ekf_nav;
 
     {
         WITH_SEMAPHORE(state.sem);
-        if (use_uncomp) {
-            state.accel = Vector3f{pkt1.uncompAccel[0], pkt1.uncompAccel[1], pkt1.uncompAccel[2]};
-            state.gyro = Vector3f{pkt1.uncompAngRate[0], pkt1.uncompAngRate[1], pkt1.uncompAngRate[2]};
-        } else {
-            state.accel = Vector3f{pkt1.accel[0], pkt1.accel[1], pkt1.accel[2]};
-            state.gyro = Vector3f{pkt1.gyro[0], pkt1.gyro[1], pkt1.gyro[2]};
-        }
 
-        state.quat = Quaternion{pkt1.quaternion[3], pkt1.quaternion[0], pkt1.quaternion[1], pkt1.quaternion[2]};
+        state.quat.from_euler(euler.roll_rad, euler.pitch_rad, euler.yaw_rad);
         state.have_quaternion = true;
 
-        state.velocity = Vector3f{pkt1.velNED[0], pkt1.velNED[1], pkt1.velNED[2]};
+        state.velocity = Vector3f{nav.vel_n_ms, nav.vel_e_ms, nav.vel_d_ms};
         state.have_velocity = true;
 
-        state.location = Location{int32_t(pkt1.positionLLA[0] * 1.0e7),
-                                  int32_t(pkt1.positionLLA[1] * 1.0e7),
-                                  int32_t(pkt1.positionLLA[2] * 1.0e2),
+        state.location = Location{int32_t(nav.latitude_deg * 1.0e7),
+                                  int32_t(nav.longitude_deg * 1.0e7),
+                                  int32_t(nav.altitude_m * 1.0e2),
                                   Location::AltFrame::ABSOLUTE};
         state.last_location_update_us = AP_HAL::micros();
         state.have_location = true;
     }
-
-#if AP_BARO_EXTERNALAHRS_ENABLED
-    {
-        AP_ExternalAHRS::baro_data_message_t baro;
-        baro.instance = 0;
-        baro.pressure_pa = pkt1.pressure*1e3;
-        baro.temperature = pkt2.temp;
-
-        AP::baro().handle_external(baro);
-    }
-#endif
-
-#if AP_COMPASS_EXTERNALAHRS_ENABLED
-    {
-        AP_ExternalAHRS::mag_data_message_t mag;
-        mag.field = Vector3f{pkt1.mag[0], pkt1.mag[1], pkt1.mag[2]};
-        mag.field *= 1000; // to mGauss
-
-        AP::compass().handle_external(mag);
-    }
-#endif
-
-    {
-        AP_ExternalAHRS::ins_data_message_t ins;
-
-        ins.accel = state.accel;
-        ins.gyro = state.gyro;
-        ins.temperature = pkt2.temp;
-
-        AP::ins().handle_external(ins);
-    }
-
-
-    // @LoggerMessage: EAH1
-    // @Description: External AHRS data
-    // @Field: TimeUS: Time since system startup
-    // @Field: Roll: euler roll
-    // @Field: Pitch: euler pitch
-    // @Field: Yaw: euler yaw
-    // @Field: VN: velocity north
-    // @Field: VE: velocity east
-    // @Field: VD: velocity down
-    // @Field: Lat: latitude
-    // @Field: Lon: longitude
-    // @Field: Alt: altitude AMSL
-    // @Field: UXY: uncertainty in XY position
-    // @Field: UV: uncertainty in velocity
-    // @Field: UR: uncertainty in roll
-    // @Field: UP: uncertainty in pitch
-    // @Field: UY: uncertainty in yaw
-
-    AP::logger().WriteStreaming("EAH1", "TimeUS,Roll,Pitch,Yaw,VN,VE,VD,Lat,Lon,Alt,UXY,UV,UR,UP,UY",
-                       "sdddnnnDUmmnddd", "F000000GG000000",
-                       "QffffffLLffffff",
-                       AP_HAL::micros64(),
-                       pkt1.ypr[2], pkt1.ypr[1], pkt1.ypr[0],
-                       pkt1.velNED[0], pkt1.velNED[1], pkt1.velNED[2],
-                       int32_t(pkt1.positionLLA[0]*1.0e7), int32_t(pkt1.positionLLA[1]*1.0e7),
-                       float(pkt1.positionLLA[2]),
-                       pkt1.posU, pkt1.velU,
-                       pkt1.yprU[2], pkt1.yprU[1], pkt1.yprU[0]);
 }
 
-/*
-  process packet type 2
- */
-void AP_ExternalAHRS_SBG::process_packet2(const uint8_t *b)
+void AP_ExternalAHRS_SBG::update_state_imu(void)
 {
-    const struct VN_packet2 &pkt2 = *(struct VN_packet2 *)b;
-    const struct VN_packet1 &pkt1 = *last_pkt1;
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+    const SBGIMUShort &imu = packet->imu_short;
 
-    last_pkt2_ms = AP_HAL::millis();
-    *last_pkt2 = pkt2;
+    AP_ExternalAHRS::ins_data_message_t ins;
+
+    float as = 1.0f/(1<<20); // convert to meters per second
+    ins.accel = Vector3f{imu.delta_vel_x*as, imu.delta_vel_y*as, imu.delta_vel_z*as};
+    float gs = 1.0f/(1<<26); // convert to radians per second
+    ins.gyro = Vector3f{imu.delta_angle_x*gs, imu.delta_angle_y*gs, imu.delta_angle_z*gs};
+    ins.temperature = imu.temperature*(1.0f/(1<<8)); // convert to degC
+
+    {
+        WITH_SEMAPHORE(state.sem);
+
+        state.accel = ins.accel;
+        state.gyro = ins.gyro;
+    }
+
+    AP::ins().handle_external(ins);
+}
+
+void AP_ExternalAHRS_SBG::update_state_mag(void)
+{
+#if AP_COMPASS_EXTERNALAHRS_ENABLED
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+    const SBGMag &sbg_mag = packet->mag;
+
+    AP_ExternalAHRS::mag_data_message_t mag;
+    mag.field = Vector3f{sbg_mag.mag_x, sbg_mag.mag_y, sbg_mag.mag_z};
+    mag.field *= 1000; // quite possibly to mGauss
+
+    AP::compass().handle_external(mag);
+#endif
+}
+
+void AP_ExternalAHRS_SBG::update_state_baro(void)
+{
+#if AP_BARO_EXTERNALAHRS_ENABLED
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+
+    AP_ExternalAHRS::baro_data_message_t baro;
+    baro.instance = 0;
+    baro.pressure_pa = packet->air_data.pressure_abs_pa;
+    // temperature in air_data packet is always 0 as it's for airspeed
+    baro.temperature = packet->imu_short.temperature*(1.0f/(1<<8));
+
+    AP::baro().handle_external(baro);
+#endif
+}
+
+void AP_ExternalAHRS_SBG::update_state_gps(void)
+{
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+    const SBGGPS1Pos &pos = packet->gps1_pos;
+    const SBGGPS1Vel &vel = packet->gps1_vel;
 
     AP_ExternalAHRS::gps_data_message_t gps;
 
-    // get ToW in milliseconds
-    gps.gps_week = pkt2.timeGPS / (AP_MSEC_PER_WEEK * 1000000ULL);
-    gps.ms_tow = (pkt2.timeGPS / 1000000ULL) % (60*60*24*7*1000ULL);
-    gps.fix_type = pkt2.GPS1Fix;
-    gps.satellites_in_view = pkt2.numGPS1Sats;
+    gps.gps_week = 0xFFFF; // not known (annoying to calculate)
+    gps.ms_tow = pos.time_of_week_ms;
+    {
+        uint8_t status = pos.pos_status & 0x3F;
+        uint8_t type = (pos.pos_status >> 6) & 0x3F;
 
-    gps.horizontal_pos_accuracy = pkt1.posU;
-    gps.vertical_pos_accuracy = pkt1.posU;
-    gps.horizontal_vel_accuracy = pkt1.velU;
+        uint8_t fix = GPS_FIX_TYPE_NO_FIX; // default if fix type unknown
+        if (status >= 2) { // internal error
+            fix = GPS_FIX_TYPE_NO_GPS;
+        } else if (status == 1) { // insufficient observations
+            fix = GPS_FIX_TYPE_NO_FIX;
+        } else if (type == 2) { // single point solution
+            fix = GPS_FIX_TYPE_3D_FIX;
+        } else if ((type >= 3) || (type <= 5)) { // various DGPS/augmented types
+            fix = GPS_FIX_TYPE_DGPS;
+        } else if (type == 6) { // RTK float
+            fix = GPS_FIX_TYPE_RTK_FLOAT;
+        } else if (type == 7) { // RTK int
+            fix = GPS_FIX_TYPE_RTK_FIXED;
+        }
+        gps.fix_type = fix;
+    }
+    gps.satellites_in_view = pos.num_satellites;
 
-    gps.hdop = pkt2.GPS1DOP[4];
-    gps.vdop = pkt2.GPS1DOP[3];
+    gps.horizontal_pos_accuracy =
+        sqrt(pos.latitude_acc_m*pos.latitude_acc_m+
+             pos.longitude_acc_m*pos.longitude_acc_m);
+    gps.vertical_pos_accuracy = pos.altitude_acc_m;
+    gps.horizontal_vel_accuracy =
+        sqrt(vel.vel_n_acc_ms*vel.vel_n_acc_ms+
+             vel.vel_e_acc_ms*vel.vel_e_acc_ms);
 
-    gps.latitude = pkt2.GPS1posLLA[0] * 1.0e7;
-    gps.longitude = pkt2.GPS1posLLA[1] * 1.0e7;
-    gps.msl_altitude = pkt2.GPS1posLLA[2] * 1.0e2;
+    gps.hdop = 0; // not provided
+    gps.vdop = 0;
 
-    gps.ned_vel_north = pkt2.GPS1velNED[0];
-    gps.ned_vel_east = pkt2.GPS1velNED[1];
-    gps.ned_vel_down = pkt2.GPS1velNED[2];
+    gps.latitude = pos.latitude_deg * 1.0e7;
+    gps.longitude = pos.longitude_deg * 1.0e7;
+    gps.msl_altitude = pos.altitude_m * 1.0e2;
 
-    if (gps.fix_type >= 3 && !state.have_origin) {
+    gps.ned_vel_north = vel.vel_n_ms;
+    gps.ned_vel_east = vel.vel_e_ms;
+    gps.ned_vel_down = vel.vel_d_ms;
+
+    if (gps.fix_type >= GPS_FIX_TYPE_3D_FIX && !state.have_origin) {
         WITH_SEMAPHORE(state.sem);
-        state.origin = Location{int32_t(pkt2.GPS1posLLA[0] * 1.0e7),
-                                int32_t(pkt2.GPS1posLLA[1] * 1.0e7),
-                                int32_t(pkt2.GPS1posLLA[2] * 1.0e2),
+        state.origin = Location{int32_t(pos.latitude_deg * 1.0e7),
+                                int32_t(pos.longitude_deg * 1.0e7),
+                                int32_t(pos.altitude_m * 1.0e2),
                                 Location::AltFrame::ABSOLUTE};
         state.have_origin = true;
     }
@@ -590,100 +575,6 @@ void AP_ExternalAHRS_SBG::process_packet2(const uint8_t *b)
         AP::gps().handle_external(gps, instance);
     }
 }
-
-/*
-  process VN-100 packet type 1
- */
-void AP_ExternalAHRS_SBG::process_packet_VN_100(const uint8_t *b)
-{
-    const struct VN_100_packet1 &pkt = *(struct VN_100_packet1 *)b;
-
-    last_pkt1_ms = AP_HAL::millis();
-
-    const bool use_uncomp = false;
-
-    {
-        WITH_SEMAPHORE(state.sem);
-        if (use_uncomp) {
-            state.accel = Vector3f{pkt.uncompAccel[0], pkt.uncompAccel[1], pkt.uncompAccel[2]};
-            state.gyro = Vector3f{pkt.uncompAngRate[0], pkt.uncompAngRate[1], pkt.uncompAngRate[2]};
-        } else {
-            state.accel = Vector3f{pkt.accel[0], pkt.accel[1], pkt.accel[2]};
-            state.gyro = Vector3f{pkt.gyro[0], pkt.gyro[1], pkt.gyro[2]};
-        }
-
-        state.quat = Quaternion{pkt.quaternion[3], pkt.quaternion[0], pkt.quaternion[1], pkt.quaternion[2]};
-        state.have_quaternion = true;
-    }
-
-#if AP_BARO_EXTERNALAHRS_ENABLED
-    {
-        AP_ExternalAHRS::baro_data_message_t baro;
-        baro.instance = 0;
-        baro.pressure_pa = pkt.pressure*1e3;
-        baro.temperature = pkt.temp;
-
-        AP::baro().handle_external(baro);
-    }
-#endif
-
-#if AP_COMPASS_EXTERNALAHRS_ENABLED
-    {
-        AP_ExternalAHRS::mag_data_message_t mag;
-        if (use_uncomp) {
-            mag.field = Vector3f{pkt.uncompMag[0], pkt.uncompMag[1], pkt.uncompMag[2]};
-        } else {
-            mag.field = Vector3f{pkt.mag[0], pkt.mag[1], pkt.mag[2]};
-        }
-        mag.field *= 1000; // to mGauss
-
-        AP::compass().handle_external(mag);
-    }
-#endif
-
-    {
-        AP_ExternalAHRS::ins_data_message_t ins;
-
-        ins.accel = state.accel;
-        ins.gyro = state.gyro;
-        ins.temperature = pkt.temp;
-
-        AP::ins().handle_external(ins);
-    }
-
-    // @LoggerMessage: EAH3
-    // @Description: External AHRS data
-    // @Field: TimeUS: Time since system startup
-    // @Field: Temp: Temprature
-    // @Field: Pres: Pressure
-    // @Field: MX: Magnetic feild X-axis
-    // @Field: MY: Magnetic feild Y-axis
-    // @Field: MZ: Magnetic feild Z-axis
-    // @Field: AX: Acceleration X-axis
-    // @Field: AY: Acceleration Y-axis
-    // @Field: AZ: Acceleration Z-axis
-    // @Field: GX: Rotation rate X-axis
-    // @Field: GY: Rotation rate Y-axis
-    // @Field: GZ: Rotation rate Z-axis
-    // @Field: Q1: Attitude quaternion 1
-    // @Field: Q2: Attitude quaternion 2
-    // @Field: Q3: Attitude quaternion 3
-    // @Field: Q4: Attitude quaternion 4
-
-    AP::logger().WriteStreaming("EAH3", "TimeUS,Temp,Pres,MX,MY,MZ,AX,AY,AZ,GX,GY,GZ,Q1,Q2,Q3,Q4",
-                       "sdPGGGoooEEE----", "F000000000000000",
-                       "Qfffffffffffffff",
-                       AP_HAL::micros64(),
-                       pkt.temp, pkt.pressure*1e3,
-                       use_uncomp ? pkt.uncompMag[0] : pkt.mag[0],
-                       use_uncomp ? pkt.uncompMag[1] : pkt.mag[1], 
-                       use_uncomp ? pkt.uncompMag[2] : pkt.mag[2],
-                       state.accel[0], state.accel[1], state.accel[2],
-                       state.gyro[0], state.gyro[1], state.gyro[2],
-                       state.quat[0], state.quat[1], state.quat[2], state.quat[3]);
-
-}
-
 
 // get serial port number for the uart
 int8_t AP_ExternalAHRS_SBG::get_port(void) const
@@ -698,21 +589,27 @@ int8_t AP_ExternalAHRS_SBG::get_port(void) const
 bool AP_ExternalAHRS_SBG::healthy(void) const
 {
     const uint32_t now = AP_HAL::millis();
-    if (type == TYPE::VN_100) {
-        return (now - last_pkt1_ms < 40);
-    }
-    return (now - last_pkt1_ms < 40 && now - last_pkt2_ms < 500);
+    // TODO: better
+    return (now - last_packet_ms < 50) && initialised();
 }
 
 bool AP_ExternalAHRS_SBG::initialised(void) const
 {
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+
     if (!setup_complete) {
         return false;
     }
-    if (type == TYPE::VN_100) {
-        return last_pkt1_ms != 0;
-    }
-    return last_pkt1_ms != 0 && last_pkt2_ms != 0;
+
+    // we've received at least one of every packet
+    return packet->ekf_euler.timestamp_us
+        && packet->ekf_nav.timestamp_us
+        && packet->gps1_pos.timestamp_us
+        && packet->gps1_vel.timestamp_us
+        && packet->utc_time.timestamp_us
+        && packet->imu_short.timestamp_us
+        && packet->mag.timestamp_us
+        && packet->air_data.timestamp_us;
 }
 
 bool AP_ExternalAHRS_SBG::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const
@@ -725,57 +622,51 @@ bool AP_ExternalAHRS_SBG::pre_arm_check(char *failure_msg, uint8_t failure_msg_l
         hal.util->snprintf(failure_msg, failure_msg_len, "SBG unhealthy");
         return false;
     }
-    if (type == TYPE::VN_300) {
-        if (last_pkt2->GPS1Fix < 3) {
-            hal.util->snprintf(failure_msg, failure_msg_len, "SBG no GPS1 lock");
-            return false;
-        }
-        if (last_pkt2->GPS2Fix < 3) {
-            hal.util->snprintf(failure_msg, failure_msg_len, "SBG no GPS2 lock");
-            return false;
-        }
+
+    bool have_origin;
+    {
+        WITH_SEMAPHORE(state.sem);
+        have_origin = state.have_origin;
+    }
+    if (!have_origin) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "SBG no GPS1 lock");
+        return false;
     }
     return true;
 }
 
 /*
-  get filter status. We don't know the meaning of the status bits yet,
-  so assume all OK if we have GPS lock
+  get filter status
  */
 void AP_ExternalAHRS_SBG::get_filter_status(nav_filter_status &status) const
 {
+    // TODO: better
     memset(&status, 0, sizeof(status));
-    if (type == TYPE::VN_300) {
-        if (last_pkt1 && last_pkt2) {
-            status.flags.initalized = true;
-        }
-        if (healthy() && last_pkt2) {
-            status.flags.attitude = true;
-            status.flags.vert_vel = true;
-            status.flags.vert_pos = true;
+    bool have_origin;
+    {
+        WITH_SEMAPHORE(state.sem);
+        have_origin = state.have_origin;
+    }
 
-            const struct VN_packet2 &pkt2 = *last_pkt2;
-            if (pkt2.GPS1Fix >= 3) {
-                status.flags.horiz_vel = true;
-                status.flags.horiz_pos_rel = true;
-                status.flags.horiz_pos_abs = true;
-                status.flags.pred_horiz_pos_rel = true;
-                status.flags.pred_horiz_pos_abs = true;
-                status.flags.using_gps = true;
-            }
-        }
-    } else {
-        status.flags.initalized = initialised();
-        if (healthy()) {
-            status.flags.attitude = true;
-        }
+    status.flags.initalized = initialised();
+    if (healthy() && have_origin) {
+        status.flags.attitude = true;
+        status.flags.vert_vel = true;
+        status.flags.vert_pos = true;
+
+        status.flags.horiz_vel = true;
+        status.flags.horiz_pos_rel = true;
+        status.flags.horiz_pos_abs = true;
+        status.flags.pred_horiz_pos_rel = true;
+        status.flags.pred_horiz_pos_abs = true;
+        status.flags.using_gps = true;
     }
 }
 
 // send an EKF_STATUS message to GCS
 void AP_ExternalAHRS_SBG::send_status_report(GCS_MAVLINK &link) const
 {
-    if (!last_pkt1) {
+    if (!initialised()) {
         return;
     }
     // prepare flags
@@ -817,13 +708,13 @@ void AP_ExternalAHRS_SBG::send_status_report(GCS_MAVLINK &link) const
     }
 
     // send message
-    const struct VN_packet1 &pkt1 = *(struct VN_packet1 *)last_pkt1;
+    // TODO: better
     const float vel_gate = 5;
     const float pos_gate = 5;
     const float hgt_gate = 5;
     const float mag_var = 0;
     mavlink_msg_ekf_status_report_send(link.get_chan(), flags,
-                                       pkt1.velU/vel_gate, pkt1.posU/pos_gate, pkt1.posU/hgt_gate,
+                                       0/vel_gate, 0/pos_gate, 0/hgt_gate,
                                        mag_var, 0, 0);
 }
 

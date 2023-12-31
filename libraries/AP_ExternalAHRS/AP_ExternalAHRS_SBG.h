@@ -56,42 +56,19 @@ private:
     void update_thread();
     bool check_uart();
 
-    void process_packet1(const uint8_t *b);
-    void process_packet2(const uint8_t *b);
-    void process_packet_VN_100(const uint8_t *b);
-    void wait_register_responce(const uint8_t register_num);
+    uint16_t unframe_packet(const uint8_t *data, uint16_t len, bool &valid);
+    uint16_t process_message(uint8_t id, const uint8_t *data, uint16_t len);
+    void update_state_ekf(void);
+    void update_state_imu(void);
+    void update_state_mag(void);
+    void update_state_baro(void);
+    void update_state_gps(void);
 
-    uint8_t *pktbuf;
-    uint16_t pktoffset;
-    uint16_t bufsize;
+    uint8_t *data_buf;
+    uint16_t buf_len;
 
-    struct VN_packet1 *last_pkt1;
-    struct VN_packet2 *last_pkt2;
-
-    uint32_t last_pkt1_ms;
-    uint32_t last_pkt2_ms;
-
-    enum class TYPE {
-        VN_300,
-        VN_100,
-    } type;
-
-    char model_name[25];
-
-    // NMEA parsing for setup
-    bool decode(char c);
-    bool decode_latest_term();
-    struct NMEA_parser {
-        char term[25];            // buffer for the current term within the current sentence
-        uint8_t term_offset;      // offset within the _term buffer where the next character should be placed
-        uint8_t term_number;      // term index within the current sentence
-        uint8_t checksum;         // checksum accumulator
-        bool term_is_checksum;    // current term is the checksum
-        bool sentence_valid;      // is current sentence valid so far
-        bool sentence_done;       // true if this sentence has already been decoded
-        uint8_t register_number;  // VectorNAV register number were reading
-    } nmea;
-
+    void *packet_buf;
+    uint32_t last_packet_ms;
 };
 
 #endif  // AP_EXTERNAL_AHRS_SBG_ENABLED
