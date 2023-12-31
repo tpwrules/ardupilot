@@ -48,6 +48,11 @@ private:
     void send_packet1();
     void send_packet2();
     void nmea_printf(const char *fmt, ...);
+
+    FILE *fp;
+    uint8_t *data_buf;
+    uint16_t buf_len;
+    uint16_t curr_packet_len;
 };
 
 }

@@ -24,9 +24,78 @@
 
 using namespace SITL;
 
+#define SBG_ECOM_SYNC_1 (0xFF)
+#define SBG_ECOM_SYNC_2 (0x5A)
+#define SBG_ECOM_ETX (0x33)
+#define SBG_ECOM_MAX_PACKET_SIZE (4095)
+#define SBG_ECOM_CLASS_LOG_ECOM_0 (0)
+
+#define SBG_ECOM_LOG_EKF_EULER (6)
+#define SBG_ECOM_LOG_EKF_NAV (8)
+#define SBG_ECOM_LOG_GPS1_POS (14)
+#define SBG_ECOM_LOG_GPS1_VEL (13)
+#define SBG_ECOM_LOG_UTC_TIME (2)
+#define SBG_ECOM_LOG_IMU_SHORT (44)
+#define SBG_ECOM_LOG_MAG (4)
+#define SBG_ECOM_LOG_AIR_DATA (36)
+
+
+// valid is true if data points to a valid packet.
+// returns amount of data to consume/packet length
+static uint16_t unframe_packet(const uint8_t *data, uint16_t len, bool &valid)
+{
+    valid = false;
+
+    // sync 1 + sync 2 + id + class + length + data + crc + ETX
+    //      1 +      1 +  1 +     1 +      2 +    0 +   2 +   1
+    if (len < 9) { // bail if not enough data for a complete (empty) packet
+        return 0;
+    }
+
+    // get message metadata
+    uint16_t msg_len = data[4] | (data[5] << 8);
+    uint16_t msg_crc = data[6+msg_len] | (data[7+msg_len] << 8);
+    uint16_t packet_len = 9 + msg_len;
+
+    // validate sync markers
+    if ((data[0] != SBG_ECOM_SYNC_1) || (data[1] != SBG_ECOM_SYNC_2)) {
+        goto search;
+    }
+    // validate message length (instead of packet length to avoid overflows)
+    if (msg_len > SBG_ECOM_MAX_PACKET_SIZE-9) {
+        goto search;
+    }
+
+    if (len < packet_len) { // bail if not enough data for complete packet
+        return 0;
+    }
+
+    // validate footer and CRC
+    if (data[8+msg_len] != SBG_ECOM_ETX) {
+        goto search;
+    }
+    if (msg_crc != crc16_ccitt_r(&data[2], 4+msg_len, 0, 0)) {
+        goto search;
+    }
+
+    valid = true; // message appears valid, awesome
+    return packet_len; // consume it
+
+search:
+    // search for a sync marker and consume up to it
+    uint8_t *p = (uint8_t *)memchr(&data[1], SBG_ECOM_SYNC_1, len-1);
+    if (p) {
+        return len - (p - data);
+    } else {
+        return len;
+    }
+}
+
 SBG::SBG() :
     SerialDevice::SerialDevice()
 {
+    fp = fopen("input.ecom", "rb");
+    data_buf = new uint8_t[SBG_ECOM_MAX_PACKET_SIZE];
 }
 
 struct PACKED VN_packet1 {
@@ -203,23 +272,50 @@ void SBG::update(void)
     }
 
     uint32_t now = AP_HAL::micros();
-    // send in a loop to avoid a packet deficit over time which slows main loop
-    while (now - last_pkt1_us >= 5000) { // 200Hz
-        send_packet1();
-        last_pkt1_us += 5000;
+    while (true) {
+        while (!curr_packet_len) {
+            uint16_t buf_room = SBG_ECOM_MAX_PACKET_SIZE - buf_len;
+            if (buf_room) {
+                int bytes_read = fread(&data_buf[buf_len], 1, buf_room, fp);
+                if (bytes_read <= 0) return;
+                buf_len += bytes_read;
+            }
+            bool valid;
+            uint16_t consume = unframe_packet(&data_buf[0], buf_len, valid);
+            printf("p len: %d, valid: %d, consume %d, %d\n", buf_len, valid, consume, data_buf[0]);
+            if (valid) {
+                curr_packet_len = consume;
+            } else {
+                uint16_t remaining = buf_len - consume;
+                if (remaining) {
+                    memmove(&data_buf[0], &data_buf[consume], remaining);
+                }
+                buf_len = remaining;
+            }
+        }
+        uint8_t *msg = &data_buf[6];
+        uint16_t msg_len = curr_packet_len - 9;
+        uint16_t msg_id = data_buf[2];
+        if (msg_len >= 4 && (
+                msg_id == SBG_ECOM_LOG_EKF_EULER ||
+                msg_id == SBG_ECOM_LOG_EKF_NAV ||
+                msg_id == SBG_ECOM_LOG_GPS1_POS ||
+                msg_id == SBG_ECOM_LOG_GPS1_VEL ||
+                msg_id == SBG_ECOM_LOG_UTC_TIME ||
+                msg_id == SBG_ECOM_LOG_IMU_SHORT ||
+                msg_id == SBG_ECOM_LOG_MAG ||
+                msg_id == SBG_ECOM_LOG_AIR_DATA)) {
+            uint32_t timestamp_us = msg[0]|(msg[1]<<8)|(msg[2]<<16)|(msg[3]<<24);
+            if (timestamp_us > now) {
+                // not time yet
+                break;
+            }
+            write_to_autopilot((const char*)&data_buf[0], curr_packet_len);
+        }
+        uint16_t remaining = buf_len - curr_packet_len;
+        if (remaining) {
+            memmove(&data_buf[0], &data_buf[curr_packet_len], remaining);
+        }
+        curr_packet_len = 0;
     }
-
-    while (now - last_pkt2_us >= 200000) { // 5Hz
-        send_packet2();
-        last_pkt2_us += 200000;
-    }
-
-    // Strictly we should send this in responce to the request
-    // but sending it occasionally acheaves the same thing
-    if (now - last_type_us >= 1000000) {
-        last_type_us = now;
-        nmea_printf("$VNRRG,01,VN-300-SITL");
-    }
-
 }
-
