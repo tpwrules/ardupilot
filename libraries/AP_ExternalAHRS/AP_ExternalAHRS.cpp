@@ -26,6 +26,7 @@
 #include "AP_ExternalAHRS_MicroStrain5.h"
 #include "AP_ExternalAHRS_MicroStrain7.h"
 #include "AP_ExternalAHRS_InertialLabs.h"
+#include "AP_ExternalAHRS_SBG.h"
 
 #include <GCS_MAVLink/GCS.h>
 #include <AP_AHRS/AP_AHRS.h>
@@ -122,9 +123,9 @@ void AP_ExternalAHRS::init(void)
 #endif
 
 #if AP_EXTERNAL_AHRS_SBG_ENABLED
-    // case DevType::SBG:
-    //     backend = new AP_ExternalAHRS_SBG(this, state);
-    //     return;
+    case DevType::SBG:
+        backend = new AP_ExternalAHRS_SBG(this, state);
+        return;
 #endif
 
     }

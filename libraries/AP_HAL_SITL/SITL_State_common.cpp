@@ -284,6 +284,13 @@ SITL::SerialDevice *SITL_State_Common::create_serial_sim(const char *name, const
         inertiallabs = new SITL::InertialLabs();
         return inertiallabs;
 
+    } else if (streq(name, "SBG")) {
+        if (sbg != nullptr) {
+            AP_HAL::panic("Only one SBG INS at a time");
+        }
+        sbg = new SITL::SBG();
+        return sbg;
+
 #if HAL_SIM_AIS_ENABLED
     } else if (streq(name, "AIS")) {
         if (ais != nullptr) {
@@ -455,6 +462,9 @@ void SITL_State_Common::sim_update(void)
     }
     if (inertiallabs != nullptr) {
         inertiallabs->update();
+    }
+    if (sbg != nullptr) {
+        sbg->update();
     }
 
 #if HAL_SIM_AIS_ENABLED
