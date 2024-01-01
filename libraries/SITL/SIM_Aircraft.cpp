@@ -615,6 +615,8 @@ void Aircraft::update_model(const struct sitl_input &input)
  */
 void Aircraft::update_dynamics(const Vector3f &rot_accel)
 {
+    return;
+
     const float delta_time = frame_time_us * 1.0e-6f;
 
     // update rotational rates in body frame
