@@ -530,7 +530,7 @@ void AP_ExternalAHRS_SBG::update_state_gps(void)
             fix = GPS_FIX_TYPE_NO_FIX;
         } else if (type == 2) { // single point solution
             fix = GPS_FIX_TYPE_3D_FIX;
-        } else if ((type >= 3) || (type <= 5)) { // various DGPS/augmented types
+        } else if ((type >= 3) && (type <= 5)) { // various DGPS/augmented types
             fix = GPS_FIX_TYPE_DGPS;
         } else if (type == 6) { // RTK float
             fix = GPS_FIX_TYPE_RTK_FLOAT;
