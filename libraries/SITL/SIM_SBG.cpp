@@ -85,7 +85,7 @@ search:
     // search for a sync marker and consume up to it
     uint8_t *p = (uint8_t *)memchr(&data[1], SBG_ECOM_SYNC_1, len-1);
     if (p) {
-        return len - (p - data);
+        return p - data;
     } else {
         return len;
     }
@@ -282,12 +282,11 @@ void SBG::update(void)
             }
             bool valid;
             uint16_t consume = unframe_packet(&data_buf[0], buf_len, valid);
-            printf("p len: %d, valid: %d, consume %d, %d\n", buf_len, valid, consume, data_buf[0]);
             if (valid) {
                 curr_packet_len = consume;
             } else {
                 uint16_t remaining = buf_len - consume;
-                if (remaining) {
+                if (consume && remaining) {
                     memmove(&data_buf[0], &data_buf[consume], remaining);
                 }
                 buf_len = remaining;
@@ -306,7 +305,7 @@ void SBG::update(void)
                 msg_id == SBG_ECOM_LOG_MAG ||
                 msg_id == SBG_ECOM_LOG_AIR_DATA)) {
             uint32_t timestamp_us = msg[0]|(msg[1]<<8)|(msg[2]<<16)|(msg[3]<<24);
-            if (timestamp_us > now) {
+            if (timestamp_us > (now+25000000)) {
                 // not time yet
                 break;
             }
@@ -317,5 +316,6 @@ void SBG::update(void)
             memmove(&data_buf[0], &data_buf[curr_packet_len], remaining);
         }
         curr_packet_len = 0;
+        buf_len = remaining;
     }
 }

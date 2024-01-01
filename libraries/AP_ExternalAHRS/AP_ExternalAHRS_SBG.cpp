@@ -247,13 +247,11 @@ bool AP_ExternalAHRS_SBG::check_uart()
         }
     }
 
-    if (consume) {
-        uint16_t remaining = buf_len - consume;
-        if (remaining) {
-            memmove(&data_buf[0], &data_buf[consume], remaining);
-        }
-        buf_len = remaining;
+    uint16_t remaining = buf_len - consume;
+    if (consume && remaining) {
+        memmove(&data_buf[0], &data_buf[consume], remaining);
     }
+    buf_len = remaining;
 
     // try to process again if we've consumed something and still have more
     return consume > 0 && buf_len > 0;
@@ -304,7 +302,7 @@ search:
     // search for a sync marker and consume up to it
     uint8_t *p = (uint8_t *)memchr(&data[1], SBG_ECOM_SYNC_1, len-1);
     if (p) {
-        return len - (p - data);
+        return p - data;
     } else {
         return len;
     }
