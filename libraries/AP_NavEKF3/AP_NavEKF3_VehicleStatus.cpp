@@ -371,7 +371,7 @@ void NavEKF3_core::detectFlight()
         // Non fly forward vehicle, so can only use height and motor arm status
 
         // If the motors are armed then we could be flying and if they are not armed then we are definitely not flying
-        if (motorsArmed) {
+        if (true || motorsArmed) {
             onGround = false;
         } else {
             inFlight = false;
