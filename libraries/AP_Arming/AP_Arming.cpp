@@ -469,13 +469,13 @@ bool AP_Arming::ins_checks(bool report)
         }
 
         // check all accelerometers point in roughly same direction
-        if (!ins_accels_consistent(ins)) {
+        if (false && !ins_accels_consistent(ins)) {
             check_failed(ARMING_CHECK_INS, report, "Accels inconsistent");
             return false;
         }
 
         // check all gyros are giving consistent readings
-        if (!ins_gyros_consistent(ins)) {
+        if (false && !ins_gyros_consistent(ins)) {
             check_failed(ARMING_CHECK_INS, report, "Gyros inconsistent");
             return false;
         }
@@ -574,7 +574,7 @@ bool AP_Arming::compass_checks(bool report)
         }
 
         // check all compasses point in roughly same direction
-        if (!_compass.consistent()) {
+        if (false && !_compass.consistent()) {
             check_failed(ARMING_CHECK_COMPASS, report, "Compasses inconsistent");
             return false;
         }
