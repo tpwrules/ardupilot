@@ -305,7 +305,12 @@ void SBG::update(void)
                 msg_id == SBG_ECOM_LOG_MAG ||
                 msg_id == SBG_ECOM_LOG_AIR_DATA)) {
             uint32_t timestamp_us = msg[0]|(msg[1]<<8)|(msg[2]<<16)|(msg[3]<<24);
-            if (timestamp_us > (now+25000000)) {
+            if (!timestamp_ofs_us) {
+                timestamp_ofs_us = timestamp_us; // first message at sim time 0
+            }
+            // ensure we don't wait forever if the first message we see isn't
+            // the earliest in the file
+            if (((timestamp_us-timestamp_ofs_us) > now) && (timestamp_us > timestamp_ofs_us)) {
                 // not time yet
                 break;
             }

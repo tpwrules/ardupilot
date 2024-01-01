@@ -53,6 +53,8 @@ private:
     uint8_t *data_buf;
     uint16_t buf_len;
     uint16_t curr_packet_len;
+
+    uint32_t timestamp_ofs_us;
 };
 
 }
