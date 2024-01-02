@@ -336,6 +336,18 @@ uint16_t AP_ExternalAHRS_SBG::process_message(uint8_t id, const uint8_t *data, u
         timestamp_us = data[0] | (data[1]<<8) | (data[2]<<16) | (data[3]<<24);
     }
 
+    // mild hack, we assume the packet is complete in memory
+    uint16_t msg_crc = data[len] | (data[len+1] << 8);
+
+// @LoggerMessage: SBGP
+// @Description: SBG Systems EAHRS packet record
+// @Field: TimeUS: Time since system startup
+// @Field: T: Time since SBG startup (from message data)
+// @Field: ID: ECOM message ID (class is always 0)
+// @Field: CRC: ECOM packet CRC (to disambiguate packets)
+    AP::logger().WriteStreaming("SBGP", "TimeUS,T,ID,CRC", "QIBH",
+        AP_HAL::micros64(), timestamp_us, id, msg_crc);
+
     // for each message we check if it's the expected size and if it's actually
     // different (as something in the chain duplicates bits of data...). then
     // we store the new data and process it if appropriate as some messages
