@@ -38,6 +38,7 @@ using namespace SITL;
 #define SBG_ECOM_LOG_IMU_SHORT (44)
 #define SBG_ECOM_LOG_MAG (4)
 #define SBG_ECOM_LOG_AIR_DATA (36)
+#define SBG_ECOM_LOG_EVENT_A (24)
 
 
 // valid is true if data points to a valid packet.
@@ -303,7 +304,8 @@ void SBG::update(void)
                 msg_id == SBG_ECOM_LOG_UTC_TIME ||
                 msg_id == SBG_ECOM_LOG_IMU_SHORT ||
                 msg_id == SBG_ECOM_LOG_MAG ||
-                msg_id == SBG_ECOM_LOG_AIR_DATA)) {
+                msg_id == SBG_ECOM_LOG_AIR_DATA ||
+                msg_id == SBG_ECOM_LOG_EVENT_A)) {
             uint32_t timestamp_us = msg[0]|(msg[1]<<8)|(msg[2]<<16)|(msg[3]<<24);
             if (!timestamp_ofs_us) {
                 timestamp_ofs_us = timestamp_us; // first message at sim time 0

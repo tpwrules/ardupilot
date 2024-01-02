@@ -164,6 +164,17 @@ typedef struct PACKED {
     float air_temperature_degC;
 } SBGAirData;
 
+// expected "on new data"
+#define SBG_ECOM_LOG_EVENT_A (24)
+typedef struct PACKED {
+    uint32_t timestamp_us;
+    uint16_t event_status;
+    uint16_t offset_1_us; // if event_status & 2
+    uint16_t offset_2_us; // if event_status & 4
+    uint16_t offset_3_us; // if event_status & 8
+    uint16_t offset_4_us; // if event_status & 16
+} SBGEvent;
+
 typedef struct {
     SBGEKFEuler ekf_euler;
     SBGEKFNav ekf_nav;
@@ -173,6 +184,7 @@ typedef struct {
     SBGIMUShort imu_short;
     SBGMag mag;
     SBGAirData air_data;
+    SBGEvent event_a;
 } SBGPacketSet;
 
 // constructor
@@ -436,6 +448,14 @@ uint16_t AP_ExternalAHRS_SBG::process_message(uint8_t id, const uint8_t *data, u
         update_state_baro();
         break;
 
+    case SBG_ECOM_LOG_EVENT_A:
+        if (len != sizeof(SBGEvent)) { return sizeof(SBGEvent); }
+        if (timestamp_us == packet->event_a.timestamp_us) { break; }
+        memcpy(&packet->event_a, data, sizeof(SBGEvent));
+
+        update_state_event_a();
+        break;
+
     default:
         break; // just say we got what we expected
     }
@@ -586,6 +606,26 @@ void AP_ExternalAHRS_SBG::update_state_gps(void)
     }
 }
 
+void AP_ExternalAHRS_SBG::update_state_event_a(void)
+{
+    SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
+    const SBGEvent &evt = packet->event_a;
+
+    // just log the event data for now
+// @LoggerMessage: SBGE
+// @Description: SBG Systems EAHRS event record
+// @Field: TimeUS: Time since system startup
+// @Field: T: Time since SBG startup (from message data)
+// @Field: F: Flags
+// @Field: O1: event 1 offset (2nd total) (if event_status & 2)
+// @Field: O2: event 2 offset (3rd total) (if event_status & 4)
+// @Field: O3: event 3 offset (4th total) (if event_status & 8)
+// @Field: O4: event 4 offset (5th total) (if event_status & 16)
+    AP::logger().WriteStreaming("SBGE", "TimeUS,T,Flgs,O1,O2,O3,O4", "QIHHHHH",
+        AP_HAL::micros64(), evt.timestamp_us, evt.event_status,
+        evt.offset_1_us, evt.offset_2_us, evt.offset_3_us, evt.offset_4_us);
+}
+
 // get serial port number for the uart
 int8_t AP_ExternalAHRS_SBG::get_port(void) const
 {
@@ -611,7 +651,7 @@ bool AP_ExternalAHRS_SBG::initialised(void) const
         return false;
     }
 
-    // we've received at least one of every packet
+    // we've received at least one of every packet (excluding event packets)
     return packet->ekf_euler.timestamp_us
         && packet->ekf_nav.timestamp_us
         && packet->gps1_pos.timestamp_us

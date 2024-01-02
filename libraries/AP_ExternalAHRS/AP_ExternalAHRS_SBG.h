@@ -63,6 +63,7 @@ private:
     void update_state_mag(void);
     void update_state_baro(void);
     void update_state_gps(void);
+    void update_state_event_a(void);
 
     uint8_t *data_buf;
     uint16_t buf_len;
