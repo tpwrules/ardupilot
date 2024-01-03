@@ -140,17 +140,12 @@ typedef struct PACKED {
 } SBGIMUShort;
 
 // expected at 50Hz
-#define SBG_ECOM_LOG_MAG (4)
+#define SBG_ECOM_LOG_MAG_CALIB (5)
 typedef struct PACKED {
     uint32_t timestamp_us;
-    uint16_t mag_status;
-    float mag_x; // "arbitrary units", quite possibly gauss
-    float mag_y;
-    float mag_z;
-    float accel_x_ms2; // m/s^2
-    float accel_y_ms2;
-    float accel_z_ms2;
-} SBGMag;
+    uint16_t reserved;
+    uint8_t data[16]; // undocumented, presumably pre-calibration
+} SBGMagCalib;
 
 // expected at 50Hz ("on new data")
 #define SBG_ECOM_LOG_AIR_DATA (36)
@@ -182,7 +177,7 @@ typedef struct {
     SBGGPS1Vel gps1_vel;
     SBGUTCTime utc_time;
     SBGIMUShort imu_short;
-    SBGMag mag;
+    SBGMagCalib mag_calib;
     SBGAirData air_data;
     SBGEvent event_a;
 } SBGPacketSet;
@@ -432,10 +427,10 @@ uint16_t AP_ExternalAHRS_SBG::process_message(uint8_t id, const uint8_t *data, u
         update_state_imu();
         break;
 
-    case SBG_ECOM_LOG_MAG:
-        if (len != sizeof(SBGMag)) { return sizeof(SBGMag); }
-        if (timestamp_us == packet->mag.timestamp_us) { break; }
-        memcpy(&packet->mag, data, sizeof(SBGMag));
+    case SBG_ECOM_LOG_MAG_CALIB:
+        if (len != sizeof(SBGMagCalib)) { return sizeof(SBGMagCalib); }
+        if (timestamp_us == packet->mag_calib.timestamp_us) { break; }
+        memcpy(&packet->mag_calib, data, sizeof(SBGMagCalib));
 
         update_state_mag();
         break;
@@ -516,11 +511,27 @@ void AP_ExternalAHRS_SBG::update_state_mag(void)
 {
 #if AP_COMPASS_EXTERNALAHRS_ENABLED
     SBGPacketSet *packet = (SBGPacketSet*)packet_buf;
-    const SBGMag &sbg_mag = packet->mag;
+    const SBGMagCalib &mag_calib = packet->mag_calib;
+
+    // no idea what has possessed them to do this, but so it has been done.
+    const uint8_t *b = &mag_calib.data[0];
+
+#define MF(h, l) (int16_t)(((uint16_t)(h) << 8) | (l))
+    int16_t mag_x = MF(b[0] ^ b[1], b[4]); // mGauss
+    int16_t mag_y = MF(b[6] ^ b[5], b[11] ^ b[1]);
+    int16_t mag_z = MF(b[7] ^ b[9], b[9]);
+    /*
+    int16_t ekf_roll = MF(b[10], b[1]); // mrad
+    int16_t ekf_pitch = MF(b[5], b[2] ^ b[4]);
+    int16_t ekf_yaw = MF(b[3] ^ b[5], b[8] ^ b[10]);
+    int16_t ekf_rot_rate = MF(b[14] ^ b[9], b[12] ^ b[4]); // mrad per second
+    int16_t unknown = MF(b[13] ^ b[10], b[15] ^ b[5]);
+    */
+#undef MF
 
     AP_ExternalAHRS::mag_data_message_t mag;
-    mag.field = Vector3f{sbg_mag.mag_x, sbg_mag.mag_y, sbg_mag.mag_z};
-    mag.field *= 1000; // quite possibly to mGauss
+    // ardupilot expects data in mGauss
+    mag.field = Vector3f{(float)mag_x, (float)mag_y, (float)mag_z};
 
     AP::compass().handle_external(mag);
 #endif
@@ -658,7 +669,7 @@ bool AP_ExternalAHRS_SBG::initialised(void) const
         && packet->gps1_vel.timestamp_us
         && packet->utc_time.timestamp_us
         && packet->imu_short.timestamp_us
-        && packet->mag.timestamp_us
+        && packet->mag_calib.timestamp_us
         && packet->air_data.timestamp_us;
 }
 
