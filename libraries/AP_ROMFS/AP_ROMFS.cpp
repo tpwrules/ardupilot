@@ -31,6 +31,41 @@
 const AP_ROMFS::embedded_file AP_ROMFS::files[] = {};
 #endif
 
+// https://github.com/frida/xz/blob/e70f5800ab5001c9509d374dbf3e7e6b866c43fe/src/liblzma/simple/armthumb.c#L17-L49
+// public domain license
+// safe to use on any input. now_pos is offset for multiple binaries in one stream.
+static size_t armthumb_bcj_filter(
+    uint32_t now_pos, bool is_encoder, uint8_t *buffer, size_t size)
+{
+    size_t i;
+    for (i = 0; i + 4 <= size; i += 2) {
+        if ((buffer[i + 1] & 0xF8) == 0xF0
+                && (buffer[i + 3] & 0xF8) == 0xF8) {
+            uint32_t src = (((uint32_t)(buffer[i + 1]) & 7) << 19)
+                | ((uint32_t)(buffer[i + 0]) << 11)
+                | (((uint32_t)(buffer[i + 3]) & 7) << 8)
+                | (uint32_t)(buffer[i + 2]);
+
+            src <<= 1;
+
+            uint32_t dest;
+            if (is_encoder)
+                dest = now_pos + (uint32_t)(i) + 4 + src;
+            else
+                dest = src - (now_pos + (uint32_t)(i) + 4);
+
+            dest >>= 1;
+            buffer[i + 1] = 0xF0 | ((dest >> 19) & 0x7);
+            buffer[i + 0] = (dest >> 11);
+            buffer[i + 3] = 0xF8 | ((dest >> 8) & 0x7);
+            buffer[i + 2] = (dest);
+            i += 2;
+        }
+    }
+
+    return i;
+}
+
 /*
   find an embedded file
 */
@@ -92,6 +127,9 @@ const uint8_t *AP_ROMFS::find_decompress(const char *name, uint32_t &size)
         ::free(decompressed_data);
         return nullptr;
     }
+
+    // undo filter to get back original data
+    armthumb_bcj_filter(0, false, decompressed_data, f->decompressed_size);
 
     if (crc32_small(0, decompressed_data, f->decompressed_size) != f->crc) {
         ::free(decompressed_data);
