@@ -27,3 +27,4 @@ int lua_mavlink_send_chan(lua_State *L);
 int lua_mavlink_block_command(lua_State *L);
 int lua_print(lua_State *L);
 int lua_range_finder_handle_script_msg(lua_State *L);
+int lua_odid_mav_inject(lua_State *L);

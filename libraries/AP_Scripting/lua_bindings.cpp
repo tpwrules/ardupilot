@@ -956,4 +956,34 @@ int lua_range_finder_handle_script_msg(lua_State *L) {
 }
 #endif
 
+int lua_odid_mav_inject(lua_State *L) {
+    // code rather inspired by master's mavlink bindings
+
+    binding_argcheck(L, 2);
+
+    const uint32_t msgid = get_uint32(L, 1, 0, (1 << 24) - 1);
+
+    size_t packet_len;
+    const char *packet = luaL_checklstring(L, 2, &packet_len);
+
+    mavlink_channel_t chan = (mavlink_channel_t)0; // does not much matter
+    mavlink_message_t msg;
+
+    memset(&msg, 0, sizeof(mavlink_message_t));
+
+    // set up message
+    msg.magic = MAVLINK_STX;
+    msg.len = packet_len;
+    msg.sysid = 1; // does not much matter
+    msg.compid = 1;
+    msg.msgid = msgid;
+    memcpy((char*)&msg.payload64, packet, packet_len);
+
+    // now parse and handle that message. the handler expects to be called from
+    // different GCSes and takes a lock so this should be safe.
+    AP::opendroneid().handle_msg(chan, msg);
+
+    return 0; // no Lua results
+}
+
 #endif  // AP_SCRIPTING_ENABLED
