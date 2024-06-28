@@ -1384,12 +1384,7 @@ void emit_singleton_checkers(void) {
     if (!(node->flags & UD_FLAG_LITERAL) && (node->methods != NULL)) {
       start_dependency(source, node->dependency);
       fprintf(source, "%s * check_%s(lua_State *L) {\n", node->name, node->sanatized_name);
-      fprintf(source, "    %s * ud = %s::get_singleton();\n", node->name, node->name);
-      fprintf(source, "    if (ud == nullptr) {\n");
-      fprintf(source, "        // This error will never return, so there is no danger of returning a nullptr\n");
-      fprintf(source, "        not_supported_error(L, 1, \"%s\");\n", node->rename ? node->rename : node->name);
-      fprintf(source, "    }\n");
-      fprintf(source, "    return ud;\n");
+      fprintf(source, "    return %s::get_singleton();\n", node->name);
       fprintf(source, "}\n");
       end_dependency(source, node->dependency);
       fprintf(source, "\n");
@@ -2467,7 +2462,7 @@ void emit_index(struct userdata *head) {
   }
 }
 
-void emit_type_index(struct userdata * data, char * meta_name) {
+void emit_ap_object_type_index(struct userdata * data, char * meta_name) {
   fprintf(source, "const struct luaL_Reg %s_fun[] = {\n", meta_name);
   while (data) {
     start_dependency(source, data->dependency);
@@ -2478,7 +2473,22 @@ void emit_type_index(struct userdata * data, char * meta_name) {
   fprintf(source, "};\n\n");
 }
 
-void emit_type_index_with_operators(struct userdata * data, char * meta_name) {
+void emit_singleton_type_index(struct userdata * data, char * meta_name) {
+  fprintf(source, "const struct singleton_meta %s_fun[] = {\n", meta_name);
+  while (data) {
+    start_dependency(source, data->dependency);
+    if (!(data->flags & UD_FLAG_LITERAL) && (data->methods != NULL)) {
+      fprintf(source, "    {\"%s\", %s_index, (void* (*)())&%s::get_singleton},\n", data->rename ? data->rename : data->name, data->sanatized_name, data->name);
+    } else {
+      fprintf(source, "    {\"%s\", %s_index, nullptr},\n", data->rename ? data->rename : data->name, data->sanatized_name);
+    }
+    end_dependency(source, data->dependency);
+    data = data->next;
+  }
+  fprintf(source, "};\n\n");
+}
+
+void emit_userdata_type_index(struct userdata * data, char * meta_name) {
   fprintf(source, "const struct userdata_meta %s_fun[] = {\n", meta_name);
   while (data) {
     start_dependency(source, data->dependency);
@@ -2495,9 +2505,9 @@ void emit_type_index_with_operators(struct userdata * data, char * meta_name) {
 
 void emit_loaders(void) {
 
-  emit_type_index_with_operators(parsed_userdata, "userdata");
-  emit_type_index(parsed_singletons, "singleton");
-  emit_type_index(parsed_ap_objects, "ap_object");
+  emit_userdata_type_index(parsed_userdata, "userdata");
+  emit_singleton_type_index(parsed_singletons, "singleton");
+  emit_ap_object_type_index(parsed_ap_objects, "ap_object");
 
   fprintf(source, "static int binding_index(lua_State *L) {\n");
   fprintf(source, "    const char * name = luaL_checkstring(L, 2);\n");
@@ -2505,6 +2515,9 @@ void emit_loaders(void) {
   fprintf(source, "    bool found = false;\n");
   fprintf(source, "    for (uint32_t i = 0; i < ARRAY_SIZE(singleton_fun); i++) {\n");
   fprintf(source, "        if (strcmp(name, singleton_fun[i].name) == 0) {\n");
+  fprintf(source, "            if (singleton_fun[i].getter && (*singleton_fun[i].getter)() == nullptr) {\n");
+  fprintf(source, "                return luaL_error(L, \"binding %%s not available\", singleton_fun[i].name);\n");
+  fprintf(source, "            }\n");
   fprintf(source, "            lua_newuserdata(L, 0);\n");
   fprintf(source, "            if (luaL_newmetatable(L, name)) { // need to create metatable\n");
   fprintf(source, "                lua_pushcfunction(L, singleton_fun[i].func);\n");
@@ -2717,14 +2730,6 @@ void emit_argcheck_helper(void) {
   fprintf(source, "    return 1;\n");
   fprintf(source, "}\n\n");
 
-}
-
-void emit_not_supported_helper(void) {
-  fprintf(source, "static int not_supported_error(lua_State *L, int arg, const char* name) {\n");
-  fprintf(source, "    char error_msg[50];\n");
-  fprintf(source, "    snprintf(error_msg, sizeof(error_msg), \"%%s not supported on this firmware\", name);\n");
-  fprintf(source, "    return luaL_argerror(L, arg, error_msg);\n");
-  fprintf(source, "}\n\n");
 }
 
 void emit_docs_type(struct type type, const char *prefix, const char *suffix) {
@@ -3027,6 +3032,13 @@ void emit_structs(void) {
   fprintf(source, "    lua_CFunction func;\n");
   fprintf(source, "    const luaL_Reg *operators;\n");
   fprintf(source, "};\n\n");
+
+  // emit the singleton meta table header
+  fprintf(source, "struct singleton_meta {\n");
+  fprintf(source, "    const char *name;\n");
+  fprintf(source, "    lua_CFunction func;\n");
+  fprintf(source, "    void * (*getter)();\n");
+  fprintf(source, "};\n\n");
 }
 
 char * output_path = NULL;
@@ -3138,8 +3150,6 @@ int main(int argc, char **argv) {
   fprintf(source, "\n\n");
 
   emit_argcheck_helper();
-
-  emit_not_supported_helper();
 
   emit_structs();
 
