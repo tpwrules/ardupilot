@@ -1190,7 +1190,7 @@ LUA_API void *lua_newuserdata (lua_State *L, size_t size) {
   luaC_checkGC(L);
   lua_unlock(L);
   void *udata = getudatamem(u);
-  memset(udata, 0, size);
+  // memset(udata, 0, size); // Ardupilot allocator zeroes block already
   return udata;
 }
 
