@@ -1303,7 +1303,6 @@ void emit_userdata_allocators(void) {
     start_dependency(source, node->dependency);
     // New method used internally
     fprintf(source, "int new_%s(lua_State *L) {\n", node->sanatized_name);
-    fprintf(source, "    luaL_checkstack(L, 2, \"Out of stack\");\n"); // ensure we have sufficent stack to push the return
     fprintf(source, "    void *ud = lua_newuserdata(L, sizeof(%s));\n", node->name);
     fprintf(source, "    new (ud) %s();\n", node->name);
     fprintf(source, "    luaL_getmetatable(L, \"%s\");\n", node->rename ? node->rename :  node->name);
@@ -1839,9 +1838,20 @@ void emit_singleton_fields() {
 int emit_references(const struct argument *arg, const char * tab) {
   int arg_index = NULLABLE_ARG_COUNT_BASE + 2;
   int return_count = 0;
+  // count arguments to return so we know if we need to check the stack
+  const struct argument *count_arg = arg;
+  while (count_arg != NULL) {
+    if (count_arg->type.flags & (TYPE_FLAGS_NULLABLE | TYPE_FLAGS_REFERNCE)) {
+      return_count++;
+    }
+    count_arg = count_arg->next;
+  }
+  // add one to have a spare stack slot for userdata creation funcs
+  fprintf(source, "%sif (%d > LUA_MINSTACK) {\n", tab, return_count+1);
+  fprintf(source, "%s  luaL_checkstack(L, %d, nullptr);\n", tab, return_count+1);
+  fprintf(source, "%s}\n\n", tab);
   while (arg != NULL) {
     if (arg->type.flags & (TYPE_FLAGS_NULLABLE | TYPE_FLAGS_REFERNCE)) {
-      return_count++;
       switch (arg->type.type) {
         case TYPE_BOOLEAN:
           fprintf(source, "%slua_pushboolean(L, data_%d);\n", tab, arg_index);
@@ -2548,7 +2558,7 @@ void emit_loaders(void) {
   fprintf(source, "}\n\n");
 
   fprintf(source, "void load_generated_bindings(lua_State *L) {\n");
-  fprintf(source, "    luaL_checkstack(L, 5, \"Out of stack\");\n"); // this is more stack space then we need, but should never fail
+  fprintf(source, "    luaL_checkstack(L, 5, nullptr);\n"); // this is more stack space then we need, but should never fail
   fprintf(source, "    // userdata metatables\n");
   fprintf(source, "    for (uint32_t i = 0; i < ARRAY_SIZE(userdata_fun); i++) {\n");
   fprintf(source, "        luaL_newmetatable(L, userdata_fun[i].name);\n");
@@ -2721,7 +2731,6 @@ void emit_argcheck_helper(void) {
   fprintf(source, "}\n\n");
 
   fprintf(source, "int new_ap_object(lua_State *L, size_t size, const char * name) {\n");
-  fprintf(source, "    luaL_checkstack(L, 2, \"Out of stack\");\n");
   fprintf(source, "    lua_newuserdata(L, size);\n");
   fprintf(source, "    luaL_getmetatable(L, name);\n");
   fprintf(source, "    lua_setmetatable(L, -2);\n");
