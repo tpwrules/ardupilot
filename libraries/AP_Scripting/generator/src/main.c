@@ -1777,7 +1777,7 @@ void emit_field(const struct userdata_field *field, const char* object_name, con
 
   if (use_switch) {
     fprintf(source, "        default:\n");
-    fprintf(source, "            return luaL_argerror(L, lua_gettop(L), \"too many arguments\");\n");
+    fprintf(source, "            return too_many_args(L);\n");
     fprintf(source, "    }\n");
   }
 
@@ -2732,6 +2732,8 @@ void emit_argcheck_helper(void) {
   fprintf(source, "    lua_setmetatable(L, -2);\n");
   fprintf(source, "    return ud;\n");
   fprintf(source, "}\n\n");
+
+  fprintf(source, "static int too_many_args(lua_State *L) { return luaL_argerror(L, lua_gettop(L), \"too many arguments\"); }\n");
 
 }
 
