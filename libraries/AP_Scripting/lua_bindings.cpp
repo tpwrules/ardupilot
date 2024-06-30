@@ -33,8 +33,7 @@ extern const AP_HAL::HAL& hal;
 int lua_millis(lua_State *L) {
     binding_argcheck(L, 0);
 
-    new_uint32_t(L);
-    *check_uint32_t(L, -1) = AP_HAL::millis();
+    *new_uint32_t(L) = AP_HAL::millis();
 
     return 1;
 }
@@ -43,8 +42,7 @@ int lua_millis(lua_State *L) {
 int lua_micros(lua_State *L) {
     binding_argcheck(L, 0);
 
-    new_uint32_t(L);
-    *check_uint32_t(L, -1) = AP_HAL::micros();
+    *new_uint32_t(L) = AP_HAL::micros();
 
     return 1;
 }
@@ -100,8 +98,7 @@ int lua_mavlink_receive_chan(lua_State *L) {
         luaL_addlstring(&b, (char *)&msg.msg, sizeof(msg.msg));
         luaL_pushresult(&b);
         lua_pushinteger(L, msg.chan);
-        new_uint32_t(L);
-        *check_uint32_t(L, -1) = msg.timestamp_ms;
+        *new_uint32_t(L) = msg.timestamp_ms;
         return 3;
     } else {
         // no MAVLink to handle, just return no results
@@ -239,8 +236,7 @@ int lua_mission_receive(lua_State *L) {
         return 0;
     }
 
-    new_uint32_t(L);
-    *check_uint32_t(L, -1) = cmd.time_ms;
+    *new_uint32_t(L) = cmd.time_ms;
 
     lua_pushinteger(L, cmd.p1);
     lua_pushnumber(L, cmd.content_p1);
@@ -605,8 +601,7 @@ int lua_get_i2c_device(lua_State *L) {
         return luaL_argerror(L, 1, "i2c device nullptr");
     }
 
-    new_AP_HAL__I2CDevice(L);
-    *((AP_HAL::I2CDevice**)luaL_checkudata(L, -1, "AP_HAL::I2CDevice")) = scripting->_i2c_dev[scripting->num_i2c_devices]->get();
+    *new_AP_HAL__I2CDevice(L) = scripting->_i2c_dev[scripting->num_i2c_devices]->get();
 
     scripting->num_i2c_devices++;
 
@@ -681,8 +676,7 @@ int lua_get_CAN_device(lua_State *L) {
         return 0;
     }
 
-    new_ScriptingCANBuffer(L);
-    *((ScriptingCANBuffer**)luaL_checkudata(L, -1, "ScriptingCANBuffer")) = scripting->_CAN_dev->add_buffer(buffer_len);
+    *new_ScriptingCANBuffer(L) = scripting->_CAN_dev->add_buffer(buffer_len);
 
     return 1;
 }
@@ -712,8 +706,7 @@ int lua_get_CAN_device2(lua_State *L) {
         return 0;
     }
 
-    new_ScriptingCANBuffer(L);
-    *((ScriptingCANBuffer**)luaL_checkudata(L, -1, "ScriptingCANBuffer")) = scripting->_CAN_dev2->add_buffer(buffer_len);
+    *new_ScriptingCANBuffer(L) = scripting->_CAN_dev2->add_buffer(buffer_len);
 
     return 1;
 }
@@ -736,8 +729,7 @@ int lua_serial_find_serial(lua_State *L) {
         return 0;
     }
 
-    new_AP_Scripting_SerialAccess(L);
-    AP_Scripting_SerialAccess *port = check_AP_Scripting_SerialAccess(L, -1);
+    AP_Scripting_SerialAccess *port = new_AP_Scripting_SerialAccess(L);
     port->stream = driver_stream;
 #if AP_SCRIPTING_SERIALDEVICE_ENABLED
     port->is_device_port = false;
@@ -774,8 +766,7 @@ int lua_serial_find_simulated_device(lua_State *L) {
         return 0;
     }
 
-    new_AP_Scripting_SerialAccess(L);
-    AP_Scripting_SerialAccess *port = check_AP_Scripting_SerialAccess(L, -1);
+    AP_Scripting_SerialAccess *port = new_AP_Scripting_SerialAccess(L);
     port->stream = device_stream;
     port->is_device_port = true;
 
@@ -887,8 +878,7 @@ int lua_get_PWMSource(lua_State *L) {
         return luaL_argerror(L, 1, "PWMSources device nullptr");
     }
 
-    new_AP_HAL__PWMSource(L);
-    *((AP_HAL::PWMSource**)luaL_checkudata(L, -1, "AP_HAL::PWMSource")) = scripting->_pwm_source[scripting->num_pwm_source];
+    *new_AP_HAL__PWMSource(L) = scripting->_pwm_source[scripting->num_pwm_source];
 
     scripting->num_pwm_source++;
 
@@ -911,8 +901,7 @@ int lua_get_SocketAPM(lua_State *L) {
     for (uint8_t i=0; i<SCRIPTING_MAX_NUM_NET_SOCKET; i++) {
         if (scripting->_net_sockets[i] == nullptr) {
             scripting->_net_sockets[i] = sock;
-            new_SocketAPM(L);
-            *((SocketAPM**)luaL_checkudata(L, -1, "SocketAPM")) = scripting->_net_sockets[i];
+            *new_SocketAPM(L) = scripting->_net_sockets[i];
             return 1;
         }
     }
@@ -1011,8 +1000,7 @@ int SocketAPM_accept(lua_State *L) {
             if (scripting->_net_sockets[i] == nullptr) {
                 return 0;
             }
-            new_SocketAPM(L);
-            *((SocketAPM**)luaL_checkudata(L, -1, "SocketAPM")) = scripting->_net_sockets[i];
+            *new_SocketAPM(L) = scripting->_net_sockets[i];
             return 1;
         }
     }
