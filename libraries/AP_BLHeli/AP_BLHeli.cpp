@@ -1298,11 +1298,11 @@ void AP_BLHeli::init(uint32_t mask, AP_HAL::RCOutput::output_mode otype)
 
     run_test.set_and_notify(0);
 
-#if HAL_GCS_ENABLED
+//#if HAL_GCS_ENABLED
     uart.state.idx = AP_SERIALMANAGER_BLHELI_PORT;
     uart.init();
     AP::serialmanager().register_port(&uart);
-#endif // HAL_GCS_ENABLED
+//#endif // HAL_GCS_ENABLED
 
 #if HAL_WITH_IO_MCU
     if (AP_BoardConfig::io_enabled()) {
