@@ -310,7 +310,7 @@ void AP_BLHeli::msp_send_reply(uint8_t cmd, const uint8_t *buf, uint8_t len)
         c ^= msp.buf[i+3];
     }
     *b++ = c;
-    uart->write_locked(&msp.buf[0], len+6, BLHELI_UART_LOCK_KEY);
+    uart.device_write(&msp.buf[0], len+6);
 }
 
 void AP_BLHeli::putU16(uint8_t *b, uint16_t v)
@@ -570,7 +570,7 @@ void AP_BLHeli::blheli_send_reply(const uint8_t *buf, uint16_t len)
     b += len;
     *b++ = blheli.ack;
     putU16_BE(b, crc_xmodem(&blheli.buf[0], len+6));
-    uart->write_locked(&blheli.buf[0], len+8, BLHELI_UART_LOCK_KEY);
+    uart.device_write(&blheli.buf[0], len+8);
     debug("OutB(%u) 0x%02x ack=0x%02x", len+8, (unsigned)blheli.command, blheli.ack);
 }
 
@@ -963,7 +963,6 @@ void AP_BLHeli::blheli_process_command(void)
         }
         if (uart_locked) {
             debug("Unlocked UART");
-            uart->lock_port(0, 0);
             uart_locked = false;
         }
         memset(blheli.connected, 0, sizeof(blheli.connected));
@@ -1179,9 +1178,7 @@ bool AP_BLHeli::process_input(uint8_t b)
         if (blheli.state == BLHELI_COMMAND_RECEIVED) {
             valid_packet = true;
             last_valid_ms = AP_HAL::millis();
-            if (uart->lock_port(BLHELI_UART_LOCK_KEY, 0)) {
-                uart_locked = true;
-            }
+            uart_locked = true;
             blheli_process_command();
             blheli.state = BLHELI_IDLE;
             msp.state = MSP_IDLE;
@@ -1189,9 +1186,7 @@ bool AP_BLHeli::process_input(uint8_t b)
     } else if (msp.state == MSP_COMMAND_RECEIVED) {
         if (msp.packetType == MSP_PACKET_COMMAND) {
             valid_packet = true;
-            if (uart->lock_port(BLHELI_UART_LOCK_KEY, 0)) {
-                uart_locked = true;
-            }
+            uart_locked = true;
             last_valid_ms = AP_HAL::millis();
             msp_process_command();
         }
@@ -1200,19 +1195,6 @@ bool AP_BLHeli::process_input(uint8_t b)
     }
 
     return valid_packet;
-}
-
-/*
-  protocol handler for detecting BLHeli input
- */
-bool AP_BLHeli::protocol_handler(uint8_t b, AP_HAL::UARTDriver *_uart)
-{
-    uart = _uart;
-    if (hal.util->get_soft_armed()) {
-        // don't allow MSP control when armed
-        return false;
-    }
-    return process_input(b);
 }
 
 /*
@@ -1270,6 +1252,13 @@ void AP_BLHeli::run_connection_test(uint8_t chan)
  */
 void AP_BLHeli::update(void)
 {
+    if (!hal.util->get_soft_armed()) {
+        uint8_t c;
+        while (uart.device_read(&c, 1)) {
+            process_input(c);
+        }
+    }
+
     bool motor_control_active = false;
     for (uint8_t i = 0; i < num_motors; i++) {
         bool reversed = ((1U<< motor_map[i]) & channel_reversible_mask.get()) != 0;
@@ -1292,9 +1281,8 @@ void AP_BLHeli::update(void)
             motors_disabled = false;
             SRV_Channels::set_disabled_channel_mask(motors_disabled_mask);
         }
-        if (uart != nullptr) {
+        if (uart_locked) {
             debug("Unlocked UART");
-            uart->lock_port(0, 0);
             uart_locked = false;
         }
         if (motor_control_active) {
@@ -1324,19 +1312,9 @@ void AP_BLHeli::init(uint32_t mask, AP_HAL::RCOutput::output_mode otype)
     run_test.set_and_notify(0);
 
 #if HAL_GCS_ENABLED
-    // only install pass-thru protocol handler if either auto or the motor mask are set
-    if (channel_mask.get() != 0 || channel_auto.get() != 0) {
-        if (last_control_port > 0 && last_control_port != control_port) {
-            gcs().install_alternative_protocol((mavlink_channel_t)(MAVLINK_COMM_0+last_control_port), nullptr);
-            last_control_port = -1;
-        }
-        if (gcs().install_alternative_protocol((mavlink_channel_t)(MAVLINK_COMM_0+control_port),
-                                            FUNCTOR_BIND_MEMBER(&AP_BLHeli::protocol_handler,
-                                                                bool, uint8_t, AP_HAL::UARTDriver *))) {
-            debug("BLHeli installed on port %u", (unsigned)control_port);
-            last_control_port = control_port;
-        }
-    }
+    uart.state.idx = AP_SERIALMANAGER_BLHELI_PORT;
+    uart.init();
+    AP::serialmanager().register_port(&uart);
 #endif // HAL_GCS_ENABLED
 
 #if HAL_WITH_IO_MCU
