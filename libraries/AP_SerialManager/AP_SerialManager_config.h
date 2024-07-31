@@ -74,7 +74,7 @@
 // serial device simulation ports registered by AP_Scripting will use IDs starting at 61 for the first port
 #define AP_SERIALMANAGER_SCR_PORT_1         61 // SCR_SDEV1_*
 
-#define AP_SERIALMANAGER_BLHELI_PORT 71
+#define AP_SERIALMANAGER_BLHELI_PORT 15
 // 72-80 should be for more one-offs
 
  // console default baud rates and buffer sizes
