@@ -470,9 +470,6 @@ public:
     // return current packet overhead for a channel
     static uint8_t packet_overhead_chan(mavlink_channel_t chan);
 
-    // alternative protocol function handler
-    FUNCTOR_TYPEDEF(protocol_handler_fn_t, bool, uint8_t, AP_HAL::UARTDriver *);
-
     struct stream_entries {
         const streams stream_id;
         const ap_message *ap_message_ids;
@@ -1070,14 +1067,6 @@ private:
     DefaultIntervalsFromFiles *default_intervals_from_files;
 #endif
 
-    // alternative protocol handler support
-    struct {
-        GCS_MAVLINK::protocol_handler_fn_t handler;
-        uint32_t last_mavlink_ms;
-        uint32_t last_alternate_ms;
-        bool active;
-    } alternative;
-
     JitterCorrection lag_correction;
     
     // we cache the current location and send it even if the AHRS has
@@ -1235,9 +1224,6 @@ public:
     // Devo backend
     AP_DEVO_Telem devo_telemetry;
 #endif
-
-    // install an alternative protocol handler
-    bool install_alternative_protocol(mavlink_channel_t chan, GCS_MAVLINK::protocol_handler_fn_t handler);
 
     // get the VFR_HUD throttle
     int16_t get_hud_throttle(void) const {

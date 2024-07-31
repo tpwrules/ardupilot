@@ -134,26 +134,6 @@ bool GCS::get_high_latency_status()
 }
 #endif // HAL_HIGH_LATENCY2_ENABLED
 
-/*
-  install an alternative protocol handler. This allows another
-  protocol to take over the link if MAVLink goes idle. It is used to
-  allow for the AP_BLHeli pass-thru protocols to run on hal.serial(0)
- */
-bool GCS::install_alternative_protocol(mavlink_channel_t c, GCS_MAVLINK::protocol_handler_fn_t handler)
-{
-    GCS_MAVLINK *link = chan(c);
-    if (link == nullptr) {
-        return false;
-    }
-    if (link->alternative.handler && handler) {
-        // already have one installed - we may need to add support for
-        // multiple alternative handlers
-        return false;
-    }
-    link->alternative.handler = handler;
-    return true;
-}
-
 void GCS::update_sensor_status_flags()
 {
     control_sensors_present = 0;

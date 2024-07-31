@@ -70,7 +70,6 @@ mavlink_status_t* mavlink_get_channel_status(uint8_t chan) {
 #if HAL_GCS_ENABLED
 
 AP_HAL::UARTDriver	*mavlink_comm_port[MAVLINK_COMM_NUM_BUFFERS];
-bool gcs_alternative_active[MAVLINK_COMM_NUM_BUFFERS];
 
 // per-channel lock
 static HAL_Semaphore chan_locks[MAVLINK_COMM_NUM_BUFFERS];
@@ -142,10 +141,6 @@ void comm_send_buffer(mavlink_channel_t chan, const uint8_t *buf, uint8_t len)
         return;
     }
 #endif
-    if (gcs_alternative_active[chan]) {
-        // an alternative protocol is active
-        return;
-    }
     const size_t written = mavlink_comm_port[chan]->write(buf, len);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (written < len && !mavlink_comm_port[chan]->is_write_locked()) {
