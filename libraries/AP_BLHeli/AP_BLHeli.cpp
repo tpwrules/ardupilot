@@ -111,12 +111,6 @@ const AP_Param::GroupInfo AP_BLHeli::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("OTYPE",  7, AP_BLHeli, output_type, 0),
 
-    // @Param: PORT
-    // @DisplayName: Control port
-    // @Description: This sets the mavlink channel to use for blheli pass-thru. The channel number is determined by the number of serial ports configured to use mavlink. So 0 is always the console, 1 is the next serial port using mavlink, 2 the next after that and so on.
-    // @Values: 0:Console,1:Mavlink Serial Channel1,2:Mavlink Serial Channel2,3:Mavlink Serial Channel3,4:Mavlink Serial Channel4,5:Mavlink Serial Channel5
-    // @User: Advanced
-    AP_GROUPINFO("PORT",  8, AP_BLHeli, control_port, 0),
 
     // @Param: POLES
     // @DisplayName: BLHeli Motor Poles
@@ -1252,13 +1246,6 @@ void AP_BLHeli::run_connection_test(uint8_t chan)
  */
 void AP_BLHeli::update(void)
 {
-    if (!hal.util->get_soft_armed()) {
-        uint8_t c;
-        while (uart.device_read(&c, 1)) {
-            process_input(c);
-        }
-    }
-
     bool motor_control_active = false;
     for (uint8_t i = 0; i < num_motors; i++) {
         bool reversed = ((1U<< motor_map[i]) & channel_reversible_mask.get()) != 0;
@@ -1526,6 +1513,13 @@ void AP_BLHeli::log_bidir_telemetry(void)
  */
 void AP_BLHeli::update_telemetry(void)
 {
+    if (!hal.util->get_soft_armed()) {
+        uint8_t c;
+        while (uart.device_read(&c, 1)) {
+            process_input(c);
+        }
+    }
+
 #ifdef HAL_WITH_BIDIR_DSHOT
     // we might only have bi-dir dshot
     if (channel_bidir_dshot_mask.get() != 0 && !telem_uart) {
