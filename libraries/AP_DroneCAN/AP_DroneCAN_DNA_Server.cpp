@@ -57,6 +57,20 @@ void AP_DroneCAN_DNA_Server::Database::init(void)
     if (magic != NODERECORD_MAGIC) {
         reset(); // re-initializing the database will put the magic back
     }
+
+    // check each record and set occupied bit if valid
+    uint8_t empty_uid_hash[sizeof(NodeRecord::uid_hash)] = {};
+    for (uint8_t node_id=1; node_id <= MAX_NODE_ID; node_id++) {
+        NodeRecord record;
+        read_record(record, node_id);
+
+        uint8_t crc = crc_crc8(record.uid_hash, sizeof(record.uid_hash));
+        bool empty = memcmp(&record.uid_hash[0], &empty_uid_hash[0], sizeof(empty_uid_hash)) == 0;
+
+        if (crc == record.crc && !empty) {
+            storage_occupied.set(node_id);
+        }
+    }
 }
 
 // reset the database
@@ -74,6 +88,8 @@ void AP_DroneCAN_DNA_Server::Database::reset(void)
     // write magic number to the header
     uint16_t magic = NODERECORD_MAGIC;
     storage.write_block(0, &magic, NODERECORD_MAGIC_LEN);
+
+    storage_occupied.clearall(); // no IDs are occupied now
 }
 
 // read the record for the specified node ID
@@ -140,7 +156,7 @@ void AP_DroneCAN_DNA_Server::freeNodeID(uint8_t node_id)
     db.write_record(record, node_id);
 
     //Clear Occupation Mask
-    node_storage_occupied.clear(node_id);
+    db.storage_occupied.clear(node_id);
 }
 
 /* Go through Server Records, and fetch node id that matches the provided
@@ -152,7 +168,7 @@ uint8_t AP_DroneCAN_DNA_Server::getNodeIDForUniqueID(const uint8_t unique_id[], 
     getHash(cmp_record, unique_id, size);
 
     for (int i = MAX_NODE_ID; i > 0; i--) {
-        if (node_storage_occupied.get(i)) {
+        if (db.storage_occupied.get(i)) {
             db.read_record(record, i);
             if (memcmp(record.uid_hash, cmp_record.uid_hash, sizeof(NodeRecord::uid_hash)) == 0) {
                 return i; // node ID found
@@ -174,21 +190,7 @@ void AP_DroneCAN_DNA_Server::addNodeIDForUniqueID(uint8_t node_id, const uint8_t
     //Write Data to the records
     db.write_record(record, node_id);
 
-    node_storage_occupied.set(node_id);
-}
-
-//Checks if a valid Server Record is present for specified Node ID
-bool AP_DroneCAN_DNA_Server::isValidNodeRecordAvailable(uint8_t node_id)
-{
-    NodeRecord record;
-    db.read_record(record, node_id);
-
-    uint8_t empty_uid_hash[sizeof(NodeRecord::uid_hash)] = {0};
-    uint8_t crc = crc_crc8(record.uid_hash, sizeof(record.uid_hash));
-    if (crc == record.crc && memcmp(&record.uid_hash[0], &empty_uid_hash[0], sizeof(empty_uid_hash)) != 0) {
-        return true;
-    }
-    return false;
+    db.storage_occupied.set(node_id);
 }
 
 /* Initialises Publishers for respective UAVCAN Instance
@@ -206,14 +208,6 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
     if (_ap_dronecan.check_and_reset_option(AP_DroneCAN::Options::DNA_CLEAR_DATABASE)) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "UC DNA database reset");
         db.reset();
-    }
-
-    /* Go through our records and look for valid NodeRecord, to initialise
-    occupied status */
-    for (uint8_t i = 1; i <= MAX_NODE_ID; i++) {
-        if (isValidNodeRecordAvailable(i)) {
-            node_storage_occupied.set(i);
-        }
     }
 
     // Making sure that the server is started with the same node ID
@@ -250,7 +244,7 @@ uint8_t AP_DroneCAN_DNA_Server::findFreeNodeID(uint8_t preferred)
     // Search up
     uint8_t candidate = preferred;
     while (candidate <= 125) {
-        if (!node_storage_occupied.get(candidate)) {
+        if (!db.storage_occupied.get(candidate)) {
             return candidate;
         }
         candidate++;
@@ -258,7 +252,7 @@ uint8_t AP_DroneCAN_DNA_Server::findFreeNodeID(uint8_t preferred)
     //Search down
     candidate = preferred;
     while (candidate > 0) {
-        if (!node_storage_occupied.get(candidate)) {
+        if (!db.storage_occupied.get(candidate)) {
             return candidate;
         }
         candidate--;
@@ -311,7 +305,7 @@ void AP_DroneCAN_DNA_Server::verify_nodes()
             break;
         }
     }
-    if (node_storage_occupied.get(curr_verifying_node)) {
+    if (db.storage_occupied.get(curr_verifying_node)) {
         uavcan_protocol_GetNodeInfoRequest request;
         node_info_client.request(curr_verifying_node, request);
         nodeInfo_resp_rcvd = false;
@@ -390,7 +384,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     }
 #endif
 
-    if (node_storage_occupied.get(transfer.source_node_id)) {
+    if (db.storage_occupied.get(transfer.source_node_id)) {
         //if node_id already registered, just verify if Unique ID matches as well
         if (transfer.source_node_id == getNodeIDForUniqueID(rsp.hardware_version.unique_id, 16)) {
             if (transfer.source_node_id == curr_verifying_node) {

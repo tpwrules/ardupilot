@@ -38,6 +38,9 @@ class AP_DroneCAN_DNA_Server
         // write the record for the specified node ID
         void write_record(const NodeRecord &record, uint8_t node_id);
 
+        // bitmasks containing a status for each possible node ID (except 0 and > MAX_NODE_ID)
+        Bitmask<128> storage_occupied; // storage has a valid entry
+
     private:
         StorageAccess storage;
         HAL_Semaphore sem;
@@ -57,7 +60,6 @@ class AP_DroneCAN_DNA_Server
     bool nodeInfo_resp_rcvd;
 
     // bitmasks containing a status for each possible node ID (except 0 and > MAX_NODE_ID)
-    Bitmask<128> node_storage_occupied; // storage has a valid entry
     Bitmask<128> node_verified; // node seen and unique ID matches stored
     Bitmask<128> node_seen; // received NodeStatus
     Bitmask<128> node_logged; // written to log fle
@@ -90,9 +92,6 @@ class AP_DroneCAN_DNA_Server
 
     //Finds next available free Node, starting from preferred NodeID
     uint8_t findFreeNodeID(uint8_t preferred);
-
-    //Look in the storage and check if there's a valid Server Record there
-    bool isValidNodeRecordAvailable(uint8_t node_id);
 
     AP_DroneCAN &_ap_dronecan;
     CanardInterface &_canard_iface;
