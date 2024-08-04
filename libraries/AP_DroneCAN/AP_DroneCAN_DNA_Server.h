@@ -18,8 +18,8 @@ class AP_DroneCAN_DNA_Server
 {
     StorageAccess storage;
 
-    struct NodeData {
-        uint8_t hwid_hash[6];
+    struct NodeRecord {
+        uint8_t uid_hash[6];
         uint8_t crc;
     };
 
@@ -55,16 +55,16 @@ class AP_DroneCAN_DNA_Server
     uint32_t last_alloc_msg_ms;
 
     //Generates 6Byte long hash from the specified unique_id
-    void getHash(NodeData &node_data, const uint8_t unique_id[], uint8_t size) const;
+    void getHash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
 
     //Reset the Server Record
     void reset();
 
     //Reads the Server Record from storage for specified node id
-    void readNodeData(NodeData &data, uint8_t node_id);
+    void readNodeRecord(NodeRecord &record, uint8_t node_id);
 
     //Writes the Server Record from storage for specified node id
-    void writeNodeData(const NodeData &data, uint8_t node_id);
+    void writeNodeRecord(const NodeRecord &record, uint8_t node_id);
 
     //Methods to set, clear and report NodeIDs allocated/registered so far
     void freeNodeID(uint8_t node_id);
@@ -79,7 +79,7 @@ class AP_DroneCAN_DNA_Server
     uint8_t findFreeNodeID(uint8_t preferred);
 
     //Look in the storage and check if there's a valid Server Record there
-    bool isValidNodeDataAvailable(uint8_t node_id);
+    bool isValidNodeRecordAvailable(uint8_t node_id);
 
     HAL_Semaphore storage_sem;
     AP_DroneCAN &_ap_dronecan;
