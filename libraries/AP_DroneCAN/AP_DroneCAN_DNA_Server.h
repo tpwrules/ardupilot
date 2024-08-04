@@ -16,12 +16,34 @@ class AP_DroneCAN;
 //Forward declaring classes
 class AP_DroneCAN_DNA_Server
 {
-    StorageAccess storage;
-
     struct NodeRecord {
         uint8_t uid_hash[6];
         uint8_t crc;
     };
+
+    class Database {
+    public:
+        Database() : storage(StorageManager::StorageCANDNA) {};
+
+        // initialize database (ignored if repeated)
+        // TODO: add a way to specify a storage accessor (there's only one currently)
+        void init(void);
+
+        // reset the database
+        void reset(void);
+
+        // read the record for the specified node ID
+        void read_record(NodeRecord &record, uint8_t node_id);
+
+        // write the record for the specified node ID
+        void write_record(const NodeRecord &record, uint8_t node_id);
+
+    private:
+        StorageAccess storage;
+        HAL_Semaphore sem;
+    };
+
+    static Database db;
 
     enum ServerState {
         NODE_STATUS_UNHEALTHY = -5,
@@ -57,15 +79,6 @@ class AP_DroneCAN_DNA_Server
     //Generates 6Byte long hash from the specified unique_id
     void getHash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
 
-    //Reset the Server Record
-    void reset();
-
-    //Reads the Server Record from storage for specified node id
-    void readNodeRecord(NodeRecord &record, uint8_t node_id);
-
-    //Writes the Server Record from storage for specified node id
-    void writeNodeRecord(const NodeRecord &record, uint8_t node_id);
-
     //Methods to set, clear and report NodeIDs allocated/registered so far
     void freeNodeID(uint8_t node_id);
 
@@ -81,7 +94,6 @@ class AP_DroneCAN_DNA_Server
     //Look in the storage and check if there's a valid Server Record there
     bool isValidNodeRecordAvailable(uint8_t node_id);
 
-    HAL_Semaphore storage_sem;
     AP_DroneCAN &_ap_dronecan;
     CanardInterface &_canard_iface;
 
