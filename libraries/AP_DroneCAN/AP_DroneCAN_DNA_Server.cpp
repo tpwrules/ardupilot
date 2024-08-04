@@ -129,6 +129,18 @@ void AP_DroneCAN_DNA_Server::Database::compute_hash(NodeRecord &record, const ui
     }
 }
 
+// clear all information for the specified node ID
+void AP_DroneCAN_DNA_Server::Database::clear_node_id(uint8_t node_id)
+{
+    struct NodeRecord record;
+
+    // an all-zero record is unused
+    memset(&record, 0, sizeof(record));
+    write_record(record, node_id);
+
+    storage_occupied.clear(node_id);
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -138,24 +150,6 @@ AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardI
 {
     // storage size must be synced with StorageCANDNA entry in StorageManager.cpp
     static_assert(NODERECORD_LOC(MAX_NODE_ID+1) <= 1024, "DNA storage too small");
-}
-
-/* Remove Node Data from Server Record in Storage,
-and also clear Occupation Mask */
-void AP_DroneCAN_DNA_Server::freeNodeID(uint8_t node_id)
-{
-    if (node_id > MAX_NODE_ID) {
-        return;
-    }
-
-    struct NodeRecord record;
-
-    //Eliminate from Server Record
-    memset(&record, 0, sizeof(record));
-    db.write_record(record, node_id);
-
-    //Clear Occupation Mask
-    db.storage_occupied.clear(node_id);
 }
 
 /* Go through Server Records, and fetch node id that matches the provided
@@ -404,7 +398,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
         uint8_t prev_node_id = getNodeIDForUniqueID(rsp.hardware_version.unique_id, 16);
         if (prev_node_id != 0) {
             //yes we did, remove this registration
-            freeNodeID(prev_node_id);
+            db.clear_node_id(prev_node_id);
         }
         //add a new server record
         addNodeIDForUniqueID(transfer.source_node_id, rsp.hardware_version.unique_id, 16);

@@ -32,6 +32,9 @@ class AP_DroneCAN_DNA_Server
         // reset the database
         void reset(void);
 
+        // clear all information for the specified node ID
+        void clear_node_id(uint8_t node_id);
+
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
@@ -80,9 +83,6 @@ class AP_DroneCAN_DNA_Server
     uint8_t rcvd_unique_id[16];
     uint8_t rcvd_unique_id_offset;
     uint32_t last_alloc_msg_ms;
-
-    //Methods to set, clear and report NodeIDs allocated/registered so far
-    void freeNodeID(uint8_t node_id);
 
     //Go through List to find node id for specified unique id
     uint8_t getNodeIDForUniqueID(const uint8_t unique_id[], uint8_t size);
