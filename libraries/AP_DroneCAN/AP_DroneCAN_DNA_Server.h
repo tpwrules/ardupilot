@@ -38,6 +38,9 @@ class AP_DroneCAN_DNA_Server
         // write the record for the specified node ID
         void write_record(const NodeRecord &record, uint8_t node_id);
 
+        // fill the given record with the hash of the given unique ID
+        void compute_hash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
+
         // bitmasks containing a status for each possible node ID (except 0 and > MAX_NODE_ID)
         Bitmask<128> storage_occupied; // storage has a valid entry
 
@@ -77,9 +80,6 @@ class AP_DroneCAN_DNA_Server
     uint8_t rcvd_unique_id[16];
     uint8_t rcvd_unique_id_offset;
     uint32_t last_alloc_msg_ms;
-
-    //Generates 6Byte long hash from the specified unique_id
-    void getHash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
 
     //Methods to set, clear and report NodeIDs allocated/registered so far
     void freeNodeID(uint8_t node_id);

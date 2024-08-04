@@ -114,6 +114,21 @@ void AP_DroneCAN_DNA_Server::Database::write_record(const NodeRecord &data, uint
     storage.write_block(NODERECORD_LOC(node_id), &data, sizeof(struct NodeRecord));
 }
 
+// fill the given record with the hash of the given unique ID
+void AP_DroneCAN_DNA_Server::Database::compute_hash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const
+{
+    uint64_t hash = FNV_1_OFFSET_BASIS_64;
+    hash_fnv_1a(size, unique_id, &hash);
+
+    // xor-folding per http://www.isthe.com/chongo/tech/comp/fnv/
+    hash = (hash>>56) ^ (hash&(((uint64_t)1<<56)-1));
+
+    // write it to the record
+    for (uint8_t i=0; i<6; i++) {
+        record.uid_hash[i] = (hash >> (8*i)) & 0xff;
+    }
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -123,22 +138,6 @@ AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardI
 {
     // storage size must be synced with StorageCANDNA entry in StorageManager.cpp
     static_assert(NODERECORD_LOC(MAX_NODE_ID+1) <= 1024, "DNA storage too small");
-}
-
-/* Method to generate 6byte hash from the Unique ID.
-We return it packed inside the referenced NodeRecord structure */
-void AP_DroneCAN_DNA_Server::getHash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const
-{
-    uint64_t hash = FNV_1_OFFSET_BASIS_64;
-    hash_fnv_1a(size, unique_id, &hash);
-
-    // xor-folding per http://www.isthe.com/chongo/tech/comp/fnv/
-    hash = (hash>>56) ^ (hash&(((uint64_t)1<<56)-1));
-
-    // write it to ret
-    for (uint8_t i=0; i<6; i++) {
-        record.uid_hash[i] = (hash >> (8*i)) & 0xff;
-    }
 }
 
 /* Remove Node Data from Server Record in Storage,
@@ -165,7 +164,7 @@ Returns 0 if no Node ID was detected */
 uint8_t AP_DroneCAN_DNA_Server::getNodeIDForUniqueID(const uint8_t unique_id[], uint8_t size)
 {
     NodeRecord record, cmp_record;
-    getHash(cmp_record, unique_id, size);
+    db.compute_hash(cmp_record, unique_id, size);
 
     for (int i = MAX_NODE_ID; i > 0; i--) {
         if (db.storage_occupied.get(i)) {
@@ -183,7 +182,8 @@ for specified Node ID. */
 void AP_DroneCAN_DNA_Server::addNodeIDForUniqueID(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
 {
     NodeRecord record;
-    getHash(record, unique_id, size);
+    db.compute_hash(record, unique_id, size);
+
     //Generate CRC for validating the data when read back
     record.crc = crc_crc8(record.uid_hash, sizeof(record.uid_hash));
 
