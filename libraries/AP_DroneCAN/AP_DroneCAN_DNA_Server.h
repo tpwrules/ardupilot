@@ -32,6 +32,29 @@ class AP_DroneCAN_DNA_Server
         // reset the database
         void reset(void);
 
+        // returns true if the given node ID is occupied (has valid stored data)
+        bool is_occupied(uint8_t node_id) {
+            return storage_occupied.get(node_id);
+        }
+
+        // clear all information for the specified node ID
+        void clear_node_id(uint8_t node_id);
+
+        // retrieve node ID that matches the given unique ID. returns 0 if not found
+        uint8_t find_node_id(const uint8_t unique_id[], uint8_t size);
+
+        // create a record for the given node ID containing the specified unique ID
+        void create_record(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
+
+        // search for a free node ID, starting at the preferred ID (which can be 0 if
+        // none are preferred). returns 0 if none found. based on pseudocode in
+        // uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
+        uint8_t find_free_node_id(uint8_t preferred);
+
+    private:
+        // fill the given record with the hash of the given unique ID
+        void compute_hash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
+
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
@@ -41,7 +64,6 @@ class AP_DroneCAN_DNA_Server
         // bitmasks containing a status for each possible node ID (except 0 and > MAX_NODE_ID)
         Bitmask<128> storage_occupied; // storage has a valid entry
 
-    private:
         StorageAccess storage;
         HAL_Semaphore sem;
         bool initialized;
@@ -78,21 +100,6 @@ class AP_DroneCAN_DNA_Server
     uint8_t rcvd_unique_id[16];
     uint8_t rcvd_unique_id_offset;
     uint32_t last_alloc_msg_ms;
-
-    //Generates 6Byte long hash from the specified unique_id
-    void getHash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
-
-    //Methods to set, clear and report NodeIDs allocated/registered so far
-    void freeNodeID(uint8_t node_id);
-
-    //Go through List to find node id for specified unique id
-    uint8_t getNodeIDForUniqueID(const uint8_t unique_id[], uint8_t size);
-
-    //Add Node ID info to the record and setup necessary mask fields
-    void addNodeIDForUniqueID(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
-
-    //Finds next available free Node, starting from preferred NodeID
-    uint8_t findFreeNodeID(uint8_t preferred);
 
     AP_DroneCAN &_ap_dronecan;
     CanardInterface &_canard_iface;
