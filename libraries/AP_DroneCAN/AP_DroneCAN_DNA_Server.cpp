@@ -296,7 +296,7 @@ void AP_DroneCAN_DNA_Server::verify_nodes()
             break;
         }
     }
-    if (db.storage_occupied.get(curr_verifying_node)) {
+    if (db.is_occupied(curr_verifying_node)) {
         uavcan_protocol_GetNodeInfoRequest request;
         node_info_client.request(curr_verifying_node, request);
         nodeInfo_resp_rcvd = false;
@@ -375,7 +375,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     }
 #endif
 
-    if (db.storage_occupied.get(transfer.source_node_id)) {
+    if (db.is_occupied(transfer.source_node_id)) {
         //if node_id already registered, just verify if Unique ID matches as well
         if (transfer.source_node_id == db.find_node_id(rsp.hardware_version.unique_id, 16)) {
             if (transfer.source_node_id == curr_verifying_node) {

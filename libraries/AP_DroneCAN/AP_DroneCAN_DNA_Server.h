@@ -32,6 +32,11 @@ class AP_DroneCAN_DNA_Server
         // reset the database
         void reset(void);
 
+        // returns true if the given node ID is occupied (has valid stored data)
+        bool is_occupied(uint8_t node_id) {
+            return storage_occupied.get(node_id);
+        }
+
         // clear all information for the specified node ID
         void clear_node_id(uint8_t node_id);
 
@@ -46,6 +51,7 @@ class AP_DroneCAN_DNA_Server
         // uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
         uint8_t find_free_node_id(uint8_t preferred);
 
+    private:
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
@@ -58,7 +64,6 @@ class AP_DroneCAN_DNA_Server
         // bitmasks containing a status for each possible node ID (except 0 and > MAX_NODE_ID)
         Bitmask<128> storage_occupied; // storage has a valid entry
 
-    private:
         StorageAccess storage;
         HAL_Semaphore sem;
     };
