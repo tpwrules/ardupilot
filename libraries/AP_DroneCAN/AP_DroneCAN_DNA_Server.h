@@ -46,6 +46,7 @@ class AP_DroneCAN_DNA_Server
         // handle updating a node ID using the unique ID from an info message. returns true if duplicate
         bool update_node_id(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
 
+    private:
         // clear all information for the specified node ID
         void clear_node_id(uint8_t node_id);
 
@@ -60,7 +61,6 @@ class AP_DroneCAN_DNA_Server
         // uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
         uint8_t find_free_node_id(uint8_t preferred);
 
-    private:
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
