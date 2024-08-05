@@ -218,6 +218,21 @@ void AP_DroneCAN_DNA_Server::Database::init_server(uint8_t node_id, const uint8_
     }
 }
 
+// handle allocating a node ID for the given unique ID and preferred node ID
+uint8_t AP_DroneCAN_DNA_Server::Database::allocate_node_id(uint8_t preferred, const uint8_t unique_id[], uint8_t size)
+{
+    uint8_t node_id = find_node_id(unique_id, size);
+    if (node_id == 0) {
+        node_id = find_free_node_id(preferred);
+        if (node_id != 0) {
+            create_record(node_id, unique_id, size);
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "UC Node Alloc Failed!");
+        }
+    }
+    return node_id;
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -468,20 +483,11 @@ void AP_DroneCAN_DNA_Server::handleAllocation(const CanardRxTransfer& transfer, 
     rsp.unique_id.len = rcvd_unique_id_offset;
 
     if (rcvd_unique_id_offset == 16) {
-        //We have received the full Unique ID, time to do allocation
-        uint8_t resp_node_id = db.find_node_id((const uint8_t*)rcvd_unique_id, 16);
-        if (resp_node_id == 0) {
-            resp_node_id = db.find_free_node_id(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
-            if (resp_node_id != 0) {
-                db.create_record(resp_node_id, (const uint8_t*)rcvd_unique_id, 16);
-                rsp.node_id = resp_node_id;
-            } else {
-                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "UC Node Alloc Failed!");
-            }
-        } else {
-            rsp.node_id = resp_node_id;
-        }
-        //reset states as well        
+        // received the full unique ID, do the allocation
+        uint8_t preferred = msg.node_id > MAX_NODE_ID ? 0 : msg.node_id;
+        rsp.node_id = db.allocate_node_id(preferred, (const uint8_t*)rcvd_unique_id, 16);
+
+        // reset allocation state as well
         rcvd_unique_id_offset = 0;
         memset(rcvd_unique_id, 0, sizeof(rcvd_unique_id));
     }

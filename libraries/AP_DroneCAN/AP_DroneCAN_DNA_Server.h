@@ -40,6 +40,9 @@ class AP_DroneCAN_DNA_Server
             return storage_occupied.get(node_id);
         }
 
+        // handle allocating a node ID for the given unique ID
+        uint8_t allocate_node_id(uint8_t preferred, const uint8_t unique_id[], uint8_t size);
+
         // clear all information for the specified node ID
         void clear_node_id(uint8_t node_id);
 
