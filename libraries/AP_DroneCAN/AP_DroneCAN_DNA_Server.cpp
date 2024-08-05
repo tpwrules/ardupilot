@@ -80,6 +80,8 @@ void AP_DroneCAN_DNA_Server::Database::init(void)
 // handle initializing the server with the given expected node ID and unique ID
 void AP_DroneCAN_DNA_Server::Database::init_server(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
 {
+    WITH_SEMAPHORE(sem);
+
     // ensure the server is started with the expected node ID
     const uint8_t stored_own_node_id = find_node_id(unique_id, size);
     static bool reset_done;
@@ -117,6 +119,8 @@ void AP_DroneCAN_DNA_Server::Database::reset(void)
 // handle allocating a node ID for the given unique ID and preferred node ID
 uint8_t AP_DroneCAN_DNA_Server::Database::allocate_node_id(uint8_t preferred, const uint8_t unique_id[], uint8_t size)
 {
+    WITH_SEMAPHORE(sem);
+
     uint8_t node_id = find_node_id(unique_id, size);
     if (node_id == 0) {
         node_id = find_free_node_id(preferred);
@@ -132,6 +136,8 @@ uint8_t AP_DroneCAN_DNA_Server::Database::allocate_node_id(uint8_t preferred, co
 // handle updating a node ID using the unique ID from an info message. returns true if duplicate
 bool AP_DroneCAN_DNA_Server::Database::update_node_id(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
 {
+    WITH_SEMAPHORE(sem);
+
     if (is_occupied(node_id)) {
         // return true if duplicate, i.e. node ID doesn't match what we have for this unique ID
         return node_id != find_node_id(unique_id, size);
