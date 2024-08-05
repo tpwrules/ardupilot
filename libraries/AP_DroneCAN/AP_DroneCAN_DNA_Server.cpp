@@ -233,6 +233,23 @@ uint8_t AP_DroneCAN_DNA_Server::Database::allocate_node_id(uint8_t preferred, co
     return node_id;
 }
 
+// handle updating a node ID using the unique ID from an info message. returns true if duplicate
+bool AP_DroneCAN_DNA_Server::Database::update_node_id(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
+{
+    if (is_occupied(node_id)) {
+        // return true if duplicate, i.e. node ID doesn't match what we have for this unique ID
+        return node_id != find_node_id(unique_id, size);
+    } else {
+        // node ID was not allocated by us or during this boot, so let's register it
+        uint8_t prev_node_id = find_node_id(unique_id, size);
+        if (prev_node_id != node_id) { // did the known ID for this unique ID change?
+            clear_node_id(prev_node_id); // clear record for old node ID
+            create_record(node_id, unique_id, size); // create record for new node ID
+        }
+        return false; // not a duplicate, we didn't have an existing record
+    }
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -394,31 +411,15 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     }
 #endif
 
-    if (db.is_occupied(transfer.source_node_id)) {
-        //if node_id already registered, just verify if Unique ID matches as well
-        if (transfer.source_node_id == db.find_node_id(rsp.hardware_version.unique_id, 16)) {
-            if (transfer.source_node_id == curr_verifying_node) {
-                nodeInfo_resp_rcvd = true;
-            }
-            node_verified.set(transfer.source_node_id);
-        } else if (!_ap_dronecan.option_is_set(AP_DroneCAN::Options::DNA_IGNORE_DUPLICATE_NODE)) {
-            /* This is a device with node_id already registered
-            for another device */
-            server_state = DUPLICATE_NODES;
-            fault_node_id = transfer.source_node_id;
-            memcpy(fault_node_name, rsp.name.data, sizeof(fault_node_name));
-        }
+    bool duplicate = db.update_node_id(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
+
+    if (duplicate && !_ap_dronecan.option_is_set(AP_DroneCAN::Options::DNA_IGNORE_DUPLICATE_NODE)) {
+        // this ID is already in the database with another unique ID
+        server_state = DUPLICATE_NODES;
+        fault_node_id = transfer.source_node_id;
+        memcpy(fault_node_name, rsp.name.data, sizeof(fault_node_name));
     } else {
-        /* Node Id was not allocated by us, or during this boot, let's register this in our records
-        Check if we allocated this Node before */
-        uint8_t prev_node_id = db.find_node_id(rsp.hardware_version.unique_id, 16);
-        if (prev_node_id != 0) {
-            //yes we did, remove this registration
-            db.clear_node_id(prev_node_id);
-        }
-        //add a new server record
-        db.create_record(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
-        //Verify as well
+        // IDs have been verified to match our database
         node_verified.set(transfer.source_node_id);
         if (transfer.source_node_id == curr_verifying_node) {
             nodeInfo_resp_rcvd = true;
