@@ -141,6 +141,23 @@ void AP_DroneCAN_DNA_Server::Database::clear_node_id(uint8_t node_id)
     storage_occupied.clear(node_id);
 }
 
+// retrieve node ID that matches the given unique ID. returns 0 if not found
+uint8_t AP_DroneCAN_DNA_Server::Database::find_node_id(const uint8_t unique_id[], uint8_t size)
+{
+    NodeRecord record, cmp_record;
+    compute_hash(cmp_record, unique_id, size);
+
+    for (int i = MAX_NODE_ID; i > 0; i--) { // we start allocating high IDs first
+        if (storage_occupied.get(i)) {
+            read_record(record, i);
+            if (memcmp(record.uid_hash, cmp_record.uid_hash, sizeof(NodeRecord::uid_hash)) == 0) {
+                return i; // node ID found
+            }
+        }
+    }
+    return 0; // not found
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -150,25 +167,6 @@ AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardI
 {
     // storage size must be synced with StorageCANDNA entry in StorageManager.cpp
     static_assert(NODERECORD_LOC(MAX_NODE_ID+1) <= 1024, "DNA storage too small");
-}
-
-/* Go through Server Records, and fetch node id that matches the provided
-Unique IDs hash.
-Returns 0 if no Node ID was detected */
-uint8_t AP_DroneCAN_DNA_Server::getNodeIDForUniqueID(const uint8_t unique_id[], uint8_t size)
-{
-    NodeRecord record, cmp_record;
-    db.compute_hash(cmp_record, unique_id, size);
-
-    for (int i = MAX_NODE_ID; i > 0; i--) {
-        if (db.storage_occupied.get(i)) {
-            db.read_record(record, i);
-            if (memcmp(record.uid_hash, cmp_record.uid_hash, sizeof(NodeRecord::uid_hash)) == 0) {
-                return i; // node ID found
-            }
-        }
-    }
-    return 0; // not found
 }
 
 /* Hash the Unique ID and add it to the Server Record
@@ -205,7 +203,7 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
     }
 
     // Making sure that the server is started with the same node ID
-    const uint8_t stored_own_node_id = getNodeIDForUniqueID(own_unique_id, own_unique_id_len);
+    const uint8_t stored_own_node_id = db.find_node_id(own_unique_id, own_unique_id_len);
     static bool reset_done;
     if (stored_own_node_id != node_id) { // cannot match if not found
         // We have no matching record of our own Unique ID do a reset
@@ -380,7 +378,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
 
     if (db.storage_occupied.get(transfer.source_node_id)) {
         //if node_id already registered, just verify if Unique ID matches as well
-        if (transfer.source_node_id == getNodeIDForUniqueID(rsp.hardware_version.unique_id, 16)) {
+        if (transfer.source_node_id == db.find_node_id(rsp.hardware_version.unique_id, 16)) {
             if (transfer.source_node_id == curr_verifying_node) {
                 nodeInfo_resp_rcvd = true;
             }
@@ -395,7 +393,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     } else {
         /* Node Id was not allocated by us, or during this boot, let's register this in our records
         Check if we allocated this Node before */
-        uint8_t prev_node_id = getNodeIDForUniqueID(rsp.hardware_version.unique_id, 16);
+        uint8_t prev_node_id = db.find_node_id(rsp.hardware_version.unique_id, 16);
         if (prev_node_id != 0) {
             //yes we did, remove this registration
             db.clear_node_id(prev_node_id);
@@ -468,7 +466,7 @@ void AP_DroneCAN_DNA_Server::handleAllocation(const CanardRxTransfer& transfer, 
 
     if (rcvd_unique_id_offset == 16) {
         //We have received the full Unique ID, time to do allocation
-        uint8_t resp_node_id = getNodeIDForUniqueID((const uint8_t*)rcvd_unique_id, 16);
+        uint8_t resp_node_id = db.find_node_id((const uint8_t*)rcvd_unique_id, 16);
         if (resp_node_id == 0) {
             resp_node_id = findFreeNodeID(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
             if (resp_node_id != 0) {
