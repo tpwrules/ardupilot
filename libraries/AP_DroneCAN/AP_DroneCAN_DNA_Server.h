@@ -29,6 +29,9 @@ class AP_DroneCAN_DNA_Server
         // TODO: add a way to specify a storage accessor (there's only one currently)
         void init(void);
 
+        // handle initializing the server with the given expected node ID and unique ID
+        void init_server(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
+
         // reset the database
         void reset(void);
 
@@ -37,6 +40,13 @@ class AP_DroneCAN_DNA_Server
             return storage_occupied.get(node_id);
         }
 
+        // handle allocating a node ID for the given unique ID
+        uint8_t allocate_node_id(uint8_t preferred, const uint8_t unique_id[], uint8_t size);
+
+        // handle updating a node ID using the unique ID from an info message. returns true if duplicate
+        bool update_node_id(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
+
+    private:
         // clear all information for the specified node ID
         void clear_node_id(uint8_t node_id);
 
@@ -51,7 +61,6 @@ class AP_DroneCAN_DNA_Server
         // uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
         uint8_t find_free_node_id(uint8_t preferred);
 
-    private:
         // fill the given record with the hash of the given unique ID
         void compute_hash(NodeRecord &record, const uint8_t unique_id[], uint8_t size) const;
 

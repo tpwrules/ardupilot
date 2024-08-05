@@ -77,6 +77,24 @@ void AP_DroneCAN_DNA_Server::Database::init(void)
     }
 }
 
+// handle initializing the server with the given expected node ID and unique ID
+void AP_DroneCAN_DNA_Server::Database::init_server(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
+{
+    // ensure the server is started with the expected node ID
+    const uint8_t stored_own_node_id = find_node_id(unique_id, size);
+    static bool reset_done;
+    if (stored_own_node_id != node_id) { // cannot match if not found
+        // reset the database if our unique ID does not match our node ID
+        if (!reset_done) {
+            // only reset once per power cycle to avoid accidentally destroying our own record
+            reset();
+            reset_done = true;
+        }
+        // create the record for ourselves
+        create_record(node_id, unique_id, size);
+    }
+}
+
 // reset the database
 void AP_DroneCAN_DNA_Server::Database::reset(void)
 {
@@ -94,6 +112,38 @@ void AP_DroneCAN_DNA_Server::Database::reset(void)
     storage.write_block(0, &magic, NODERECORD_MAGIC_LEN);
 
     storage_occupied.clearall(); // no IDs are occupied now
+}
+
+// handle allocating a node ID for the given unique ID and preferred node ID
+uint8_t AP_DroneCAN_DNA_Server::Database::allocate_node_id(uint8_t preferred, const uint8_t unique_id[], uint8_t size)
+{
+    uint8_t node_id = find_node_id(unique_id, size);
+    if (node_id == 0) {
+        node_id = find_free_node_id(preferred);
+        if (node_id != 0) {
+            create_record(node_id, unique_id, size);
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "UC Node Alloc Failed!");
+        }
+    }
+    return node_id;
+}
+
+// handle updating a node ID using the unique ID from an info message. returns true if duplicate
+bool AP_DroneCAN_DNA_Server::Database::update_node_id(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
+{
+    if (is_occupied(node_id)) {
+        // return true if duplicate, i.e. node ID doesn't match what we have for this unique ID
+        return node_id != find_node_id(unique_id, size);
+    } else {
+        // node ID was not allocated by us or during this boot, so let's register it
+        uint8_t prev_node_id = find_node_id(unique_id, size);
+        if (prev_node_id != node_id) { // did the known ID for this unique ID change?
+            clear_node_id(prev_node_id); // clear record for old node ID
+            create_record(node_id, unique_id, size); // create record for new node ID
+        }
+        return false; // not a duplicate, we didn't have an existing record
+    }
 }
 
 // clear all information for the specified node ID
@@ -226,22 +276,9 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
         db.reset();
     }
 
-    // Making sure that the server is started with the same node ID
-    const uint8_t stored_own_node_id = db.find_node_id(own_unique_id, own_unique_id_len);
-    static bool reset_done;
-    if (stored_own_node_id != node_id) { // cannot match if not found
-        // We have no matching record of our own Unique ID do a reset
-        if (!reset_done) {
-            /* ensure we only reset once per power cycle
-            else we will wipe own record on next init(s) */
-            db.reset();
-            reset_done = true;
-        }
-        //Add ourselves to the Server Record
-        db.create_record(node_id, own_unique_id, own_unique_id_len);
-    }
-    /* Also add to seen node id this is to verify
-    if any duplicates are on the bus carrying our Node ID */
+    db.init_server(node_id, own_unique_id, own_unique_id_len);
+
+    // mark ourselves in the bitmasks so we can catch anyone using our node ID
     node_seen.set(node_id);
     node_verified.set(node_id);
     node_healthy.set(node_id);
@@ -372,31 +409,15 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
     }
 #endif
 
-    if (db.is_occupied(transfer.source_node_id)) {
-        //if node_id already registered, just verify if Unique ID matches as well
-        if (transfer.source_node_id == db.find_node_id(rsp.hardware_version.unique_id, 16)) {
-            if (transfer.source_node_id == curr_verifying_node) {
-                nodeInfo_resp_rcvd = true;
-            }
-            node_verified.set(transfer.source_node_id);
-        } else if (!_ap_dronecan.option_is_set(AP_DroneCAN::Options::DNA_IGNORE_DUPLICATE_NODE)) {
-            /* This is a device with node_id already registered
-            for another device */
-            server_state = DUPLICATE_NODES;
-            fault_node_id = transfer.source_node_id;
-            memcpy(fault_node_name, rsp.name.data, sizeof(fault_node_name));
-        }
+    bool duplicate = db.update_node_id(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
+
+    if (duplicate && !_ap_dronecan.option_is_set(AP_DroneCAN::Options::DNA_IGNORE_DUPLICATE_NODE)) {
+        // this ID is already in the database with another unique ID
+        server_state = DUPLICATE_NODES;
+        fault_node_id = transfer.source_node_id;
+        memcpy(fault_node_name, rsp.name.data, sizeof(fault_node_name));
     } else {
-        /* Node Id was not allocated by us, or during this boot, let's register this in our records
-        Check if we allocated this Node before */
-        uint8_t prev_node_id = db.find_node_id(rsp.hardware_version.unique_id, 16);
-        if (prev_node_id != 0) {
-            //yes we did, remove this registration
-            db.clear_node_id(prev_node_id);
-        }
-        //add a new server record
-        db.create_record(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
-        //Verify as well
+        // IDs have been verified to match our database
         node_verified.set(transfer.source_node_id);
         if (transfer.source_node_id == curr_verifying_node) {
             nodeInfo_resp_rcvd = true;
@@ -461,20 +482,11 @@ void AP_DroneCAN_DNA_Server::handleAllocation(const CanardRxTransfer& transfer, 
     rsp.unique_id.len = rcvd_unique_id_offset;
 
     if (rcvd_unique_id_offset == 16) {
-        //We have received the full Unique ID, time to do allocation
-        uint8_t resp_node_id = db.find_node_id((const uint8_t*)rcvd_unique_id, 16);
-        if (resp_node_id == 0) {
-            resp_node_id = db.find_free_node_id(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
-            if (resp_node_id != 0) {
-                db.create_record(resp_node_id, (const uint8_t*)rcvd_unique_id, 16);
-                rsp.node_id = resp_node_id;
-            } else {
-                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "UC Node Alloc Failed!");
-            }
-        } else {
-            rsp.node_id = resp_node_id;
-        }
-        //reset states as well        
+        // received the full unique ID, do the allocation
+        uint8_t preferred = msg.node_id > MAX_NODE_ID ? 0 : msg.node_id;
+        rsp.node_id = db.allocate_node_id(preferred, (const uint8_t*)rcvd_unique_id, 16);
+
+        // reset allocation state as well
         rcvd_unique_id_offset = 0;
         memset(rcvd_unique_id, 0, sizeof(rcvd_unique_id));
     }
