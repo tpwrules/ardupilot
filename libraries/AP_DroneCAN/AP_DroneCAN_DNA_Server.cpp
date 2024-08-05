@@ -158,6 +158,20 @@ uint8_t AP_DroneCAN_DNA_Server::Database::find_node_id(const uint8_t unique_id[]
     return 0; // not found
 }
 
+// create a record for the given node ID containing the specified unique ID
+void AP_DroneCAN_DNA_Server::Database::create_record(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
+{
+    NodeRecord record;
+    compute_hash(record, unique_id, size);
+
+    // compute a CRC to validate the record
+    record.crc = crc_crc8(record.uid_hash, sizeof(record.uid_hash));
+
+    write_record(record, node_id);
+
+    storage_occupied.set(node_id); // certain we have stored this node ID
+}
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -167,22 +181,6 @@ AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardI
 {
     // storage size must be synced with StorageCANDNA entry in StorageManager.cpp
     static_assert(NODERECORD_LOC(MAX_NODE_ID+1) <= 1024, "DNA storage too small");
-}
-
-/* Hash the Unique ID and add it to the Server Record
-for specified Node ID. */
-void AP_DroneCAN_DNA_Server::addNodeIDForUniqueID(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
-{
-    NodeRecord record;
-    db.compute_hash(record, unique_id, size);
-
-    //Generate CRC for validating the data when read back
-    record.crc = crc_crc8(record.uid_hash, sizeof(record.uid_hash));
-
-    //Write Data to the records
-    db.write_record(record, node_id);
-
-    db.storage_occupied.set(node_id);
 }
 
 /* Initialises Publishers for respective UAVCAN Instance
@@ -214,7 +212,7 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
             reset_done = true;
         }
         //Add ourselves to the Server Record
-        addNodeIDForUniqueID(node_id, own_unique_id, own_unique_id_len);
+        db.create_record(node_id, own_unique_id, own_unique_id_len);
     }
     /* Also add to seen node id this is to verify
     if any duplicates are on the bus carrying our Node ID */
@@ -399,7 +397,7 @@ void AP_DroneCAN_DNA_Server::handleNodeInfo(const CanardRxTransfer& transfer, co
             db.clear_node_id(prev_node_id);
         }
         //add a new server record
-        addNodeIDForUniqueID(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
+        db.create_record(transfer.source_node_id, rsp.hardware_version.unique_id, 16);
         //Verify as well
         node_verified.set(transfer.source_node_id);
         if (transfer.source_node_id == curr_verifying_node) {
@@ -470,7 +468,7 @@ void AP_DroneCAN_DNA_Server::handleAllocation(const CanardRxTransfer& transfer, 
         if (resp_node_id == 0) {
             resp_node_id = findFreeNodeID(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
             if (resp_node_id != 0) {
-                addNodeIDForUniqueID(resp_node_id, (const uint8_t*)rcvd_unique_id, 16);
+                db.create_record(resp_node_id, (const uint8_t*)rcvd_unique_id, 16);
                 rsp.node_id = resp_node_id;
             } else {
                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "UC Node Alloc Failed!");

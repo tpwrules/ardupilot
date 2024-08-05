@@ -38,6 +38,9 @@ class AP_DroneCAN_DNA_Server
         // retrieve node ID that matches the given unique ID. returns 0 if not found
         uint8_t find_node_id(const uint8_t unique_id[], uint8_t size);
 
+        // create a record for the given node ID containing the specified unique ID
+        void create_record(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
+
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
@@ -86,9 +89,6 @@ class AP_DroneCAN_DNA_Server
     uint8_t rcvd_unique_id[16];
     uint8_t rcvd_unique_id_offset;
     uint32_t last_alloc_msg_ms;
-
-    //Add Node ID info to the record and setup necessary mask fields
-    void addNodeIDForUniqueID(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
 
     //Finds next available free Node, starting from preferred NodeID
     uint8_t findFreeNodeID(uint8_t preferred);
