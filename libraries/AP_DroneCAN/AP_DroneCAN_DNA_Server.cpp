@@ -172,6 +172,35 @@ void AP_DroneCAN_DNA_Server::Database::create_record(uint8_t node_id, const uint
     storage_occupied.set(node_id); // certain we have stored this node ID
 }
 
+// search for a free node ID, starting at the preferred ID (which can be 0 if
+// none are preferred). returns 0 if none found. based on pseudocode in
+// uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
+uint8_t AP_DroneCAN_DNA_Server::Database::find_free_node_id(uint8_t preferred)
+{
+    if (preferred == 0) {
+        preferred = MAX_NODE_ID;
+    }
+
+    uint8_t candidate = preferred; // search IDs at or above the preferred
+    while (candidate <= MAX_NODE_ID) {
+        if (!storage_occupied.get(candidate)) {
+            return candidate;
+        }
+        candidate++;
+    }
+
+    candidate = preferred; // search IDs at or below the preferred
+    while (candidate > 0) {
+        if (!storage_occupied.get(candidate)) {
+            return candidate;
+        }
+        candidate--;
+    }
+
+    return 0; // no free IDs available...
+}
+
+
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
     _canard_iface(canard_iface),
@@ -221,34 +250,6 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
     node_healthy.set(node_id);
     self_node_id = node_id;
     return true;
-}
-
-/* Go through the Occupation mask for available Node ID
-based on pseudo code provided in
-uavcan/protocol/dynamic_node_id/1.Allocation.uavcan */
-uint8_t AP_DroneCAN_DNA_Server::findFreeNodeID(uint8_t preferred)
-{
-    if (preferred == 0) {
-        preferred = 125;
-    }
-    // Search up
-    uint8_t candidate = preferred;
-    while (candidate <= 125) {
-        if (!db.storage_occupied.get(candidate)) {
-            return candidate;
-        }
-        candidate++;
-    }
-    //Search down
-    candidate = preferred;
-    while (candidate > 0) {
-        if (!db.storage_occupied.get(candidate)) {
-            return candidate;
-        }
-        candidate--;
-    }
-    // Not found
-    return 0;
 }
 
 /* Run through the list of seen node ids for verification no more
@@ -466,7 +467,7 @@ void AP_DroneCAN_DNA_Server::handleAllocation(const CanardRxTransfer& transfer, 
         //We have received the full Unique ID, time to do allocation
         uint8_t resp_node_id = db.find_node_id((const uint8_t*)rcvd_unique_id, 16);
         if (resp_node_id == 0) {
-            resp_node_id = findFreeNodeID(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
+            resp_node_id = db.find_free_node_id(msg.node_id > MAX_NODE_ID ? 0 : msg.node_id);
             if (resp_node_id != 0) {
                 db.create_record(resp_node_id, (const uint8_t*)rcvd_unique_id, 16);
                 rsp.node_id = resp_node_id;

@@ -41,6 +41,11 @@ class AP_DroneCAN_DNA_Server
         // create a record for the given node ID containing the specified unique ID
         void create_record(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
 
+        // search for a free node ID, starting at the preferred ID (which can be 0 if
+        // none are preferred). returns 0 if none found. based on pseudocode in
+        // uavcan/protocol/dynamic_node_id/1.Allocation.uavcan
+        uint8_t find_free_node_id(uint8_t preferred);
+
         // read the record for the specified node ID
         void read_record(NodeRecord &record, uint8_t node_id);
 
@@ -89,9 +94,6 @@ class AP_DroneCAN_DNA_Server
     uint8_t rcvd_unique_id[16];
     uint8_t rcvd_unique_id_offset;
     uint32_t last_alloc_msg_ms;
-
-    //Finds next available free Node, starting from preferred NodeID
-    uint8_t findFreeNodeID(uint8_t preferred);
 
     AP_DroneCAN &_ap_dronecan;
     CanardInterface &_canard_iface;
