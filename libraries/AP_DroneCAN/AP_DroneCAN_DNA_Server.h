@@ -29,6 +29,9 @@ class AP_DroneCAN_DNA_Server
         // TODO: add a way to specify a storage accessor (there's only one currently)
         void init(void);
 
+        // handle initializing the server with the given expected node ID and unique ID
+        void init_server(uint8_t node_id, const uint8_t unique_id[], uint8_t size);
+
         // reset the database
         void reset(void);
 

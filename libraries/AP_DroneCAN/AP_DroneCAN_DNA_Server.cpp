@@ -200,6 +200,23 @@ uint8_t AP_DroneCAN_DNA_Server::Database::find_free_node_id(uint8_t preferred)
     return 0; // no free IDs available...
 }
 
+// handle initializing the server with the given expected node ID and unique ID
+void AP_DroneCAN_DNA_Server::Database::init_server(uint8_t node_id, const uint8_t unique_id[], uint8_t size)
+{
+    // ensure the server is started with the expected node ID
+    const uint8_t stored_own_node_id = find_node_id(unique_id, size);
+    static bool reset_done;
+    if (stored_own_node_id != node_id) { // cannot match if not found
+        // reset the database if our unique ID does not match our node ID
+        if (!reset_done) {
+            // only reset once per power cycle to avoid accidentally destroying our own record
+            reset();
+            reset_done = true;
+        }
+        // create the record for ourselves
+        db.create_record(node_id, unique_id, size);
+    }
+}
 
 AP_DroneCAN_DNA_Server::AP_DroneCAN_DNA_Server(AP_DroneCAN &ap_dronecan, CanardInterface &canard_iface, uint8_t driver_index) :
     _ap_dronecan(ap_dronecan),
@@ -229,22 +246,9 @@ bool AP_DroneCAN_DNA_Server::init(uint8_t own_unique_id[], uint8_t own_unique_id
         db.reset();
     }
 
-    // Making sure that the server is started with the same node ID
-    const uint8_t stored_own_node_id = db.find_node_id(own_unique_id, own_unique_id_len);
-    static bool reset_done;
-    if (stored_own_node_id != node_id) { // cannot match if not found
-        // We have no matching record of our own Unique ID do a reset
-        if (!reset_done) {
-            /* ensure we only reset once per power cycle
-            else we will wipe own record on next init(s) */
-            db.reset();
-            reset_done = true;
-        }
-        //Add ourselves to the Server Record
-        db.create_record(node_id, own_unique_id, own_unique_id_len);
-    }
-    /* Also add to seen node id this is to verify
-    if any duplicates are on the bus carrying our Node ID */
+    db.init_server(node_id, own_unique_id, own_unique_id_len);
+
+    // mark ourselves in the bitmasks so we can catch anyone using our node ID
     node_seen.set(node_id);
     node_verified.set(node_id);
     node_healthy.set(node_id);
