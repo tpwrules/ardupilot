@@ -14,6 +14,21 @@
  */
 #pragma once
 
+// make sensor selection clearer
+#define PROBE_IMU_I2C(driver, bus, addr, args ...) ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this,GET_I2C_DEVICE(bus, addr),##args))
+#define PROBE_IMU_SPI(driver, devname, args ...) ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this,hal.spi->get_device(devname),##args))
+#define PROBE_IMU_SPI2(driver, devname1, devname2, args ...) ADD_BACKEND(AP_InertialSensor_ ## driver::probe(*this,hal.spi->get_device(devname1),hal.spi->get_device(devname2),##args))
+
+#define PROBE_BARO_I2C(driver, bus, addr, args ...) ADD_BACKEND(AP_Baro_ ## driver::probe(*this,std::move(GET_I2C_DEVICE(bus, addr)),##args))
+#define PROBE_BARO_SPI(driver, devname, args ...) ADD_BACKEND(AP_Baro_ ## driver::probe(*this,std::move(hal.spi->get_device(devname)),##args))
+
+#define PROBE_MAG_I2C(driver, bus, addr, args ...) ADD_BACKEND(DRIVER_ ##driver, AP_Compass_ ## driver::probe(GET_I2C_DEVICE(bus, addr),##args))
+#define PROBE_MAG_SPI(driver, devname, args ...) ADD_BACKEND(DRIVER_ ##driver, AP_Compass_ ## driver::probe(hal.spi->get_device(devname),##args))
+#define PROBE_MAG_IMU(driver, imudev, imu_instance, args ...) ADD_BACKEND(DRIVER_ ##driver, AP_Compass_ ## driver::probe_ ## imudev(imu_instance,##args))
+#define PROBE_MAG_IMU_I2C(driver, imudev, bus, addr, args ...) ADD_BACKEND(DRIVER_ ##driver, AP_Compass_ ## driver::probe_ ## imudev(GET_I2C_DEVICE(bus,addr),##args))
+//------------------------------------
+
+
 #define CONFIG_HAL_BOARD_SUBTYPE HAL_BOARD_SUBTYPE_ESP32_S3M5STAMPFLY
 // make sensor selection clearer
 
@@ -28,7 +43,6 @@
 
 #define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
 
-// no sensors
 #define HAL_INS_DEFAULT HAL_INS_NONE
 
 #define HAL_BARO_ALLOW_INIT_NO_BARO 1
@@ -62,25 +76,31 @@
 
 //RCOUT which pins are used?
 
-#define HAL_ESP32_RCOUT { GPIO_NUM_11,GPIO_NUM_10, GPIO_NUM_9, GPIO_NUM_8, GPIO_NUM_7, GPIO_NUM_6 }
+// r-up, l-down, l-up, r-down (quad X order)
+#define HAL_ESP32_RCOUT { GPIO_NUM_42, GPIO_NUM_10, GPIO_NUM_5, GPIO_NUM_41 }
 
 // SPI BUS setup, including gpio, dma, etc
 // note... we use 'vspi' for the bmp280 and mpu9250
-#define HAL_ESP32_SPI_BUSES {}
+#define HAL_ESP32_SPI_BUSES \
+    {.host=SPI3_HOST, .dma_ch=1, .mosi=GPIO_NUM_14, .miso=GPIO_NUM_43, .sclk=GPIO_NUM_44}
+// tip:  VSPI_HOST  is an alternative name for esp's SPI3
 
 // SPI per-device setup, including speeds, etc.
-#define HAL_ESP32_SPI_DEVICES {}
+#define HAL_ESP32_SPI_DEVICES \
+    {.name= "bmi270", .bus=0, .device=0, .cs=GPIO_NUM_46, .mode = 3, .lspeed=10*MHZ, .hspeed=10*MHZ},
 
 //I2C bus list
-#define HAL_ESP32_I2C_BUSES {.port=I2C_NUM_0, .sda=GPIO_NUM_13, .scl=GPIO_NUM_14, .speed=400*KHZ, .internal=true, .soft=true}
+#define HAL_ESP32_I2C_BUSES \
+  {.port=I2C_NUM_0, .sda=GPIO_NUM_3, .scl=GPIO_NUM_4, .speed=400*KHZ, .internal=true}, \
+  {.port=I2C_NUM_1, .sda=GPIO_NUM_13, .scl=GPIO_NUM_15, .speed=400*KHZ, .internal=false}
 
 // rcin on what pin?
-#define HAL_ESP32_RCIN GPIO_NUM_14
+//#define HAL_ESP32_RCIN GPIO_NUM_14
 
 
 //HARDWARE UARTS
 #define HAL_ESP32_UART_DEVICES \
-  {.port=UART_NUM_0, .rx=GPIO_NUM_44, .tx=GPIO_NUM_43 },{.port=UART_NUM_1, .rx=GPIO_NUM_17, .tx=GPIO_NUM_18 }
+  {.port=UART_NUM_0, .rx=GPIO_NUM_1, .tx=GPIO_NUM_2 }
 
 #define HAL_LOGGING_FILESYSTEM_ENABLED 0
 #define HAL_LOGGING_DATAFLASH_ENABLED 0
