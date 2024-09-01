@@ -43,7 +43,7 @@
 
 #define HAL_ESP32_RMT_RX_PIN_NUMBER GPIO_NUM_14
 
-#define HAL_INS_DEFAULT HAL_INS_NONE
+#define HAL_INS_PROBE_LIST PROBE_IMU_SPI(BMI270, "bmi270", ROTATION_ROLL_180_YAW_90)
 
 #define HAL_BARO_ALLOW_INIT_NO_BARO 1
 
@@ -80,14 +80,13 @@
 #define HAL_ESP32_RCOUT { GPIO_NUM_42, GPIO_NUM_10, GPIO_NUM_5, GPIO_NUM_41 }
 
 // SPI BUS setup, including gpio, dma, etc
-// note... we use 'vspi' for the bmp280 and mpu9250
 #define HAL_ESP32_SPI_BUSES \
-    {.host=SPI3_HOST, .dma_ch=1, .mosi=GPIO_NUM_14, .miso=GPIO_NUM_43, .sclk=GPIO_NUM_44}
-// tip:  VSPI_HOST  is an alternative name for esp's SPI3
+    {.host=SPI2_HOST, .dma_ch=SPI_DMA_CH_AUTO, .mosi=GPIO_NUM_14, .miso=GPIO_NUM_43, .sclk=GPIO_NUM_44}
+// SPI2 was used in original firmware
 
 // SPI per-device setup, including speeds, etc.
 #define HAL_ESP32_SPI_DEVICES \
-    {.name= "bmi270", .bus=0, .device=0, .cs=GPIO_NUM_46, .mode = 3, .lspeed=10*MHZ, .hspeed=10*MHZ},
+    {.name= "bmi270", .bus=0, .device=0, .cs=GPIO_NUM_46, .mode=3, .lspeed=10*MHZ, .hspeed=10*MHZ},
 
 //I2C bus list
 #define HAL_ESP32_I2C_BUSES \
