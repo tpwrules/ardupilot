@@ -1,5 +1,9 @@
 #pragma once
 
+#include "AP_BattMonitor_config.h"
+
+#if AP_BATTERY_INA3221_ENABLED
+
 /*
  *
 
@@ -23,8 +27,7 @@ public:
     /// Constructor
     AP_BattMonitor_INA3221(AP_BattMonitor &mon,
                            AP_BattMonitor::BattMonitor_State &mon_state,
-                           AP_BattMonitor_Params &params,
-                           AP_BattMonitor::Type type);
+                           AP_BattMonitor_Params &params);
 
     void init() override;
 
@@ -42,11 +45,19 @@ private:
     HAL_Semaphore _sem;
     AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
 
-    const AP_BattMonitor::Type _type;
     uint8_t address;
 
     bool read_register(uint8_t addr, uint16_t &ret);
     bool write_register(uint8_t addr, uint16_t val);
 
     void _timer(void);
+
+    AP_Int8 i2c_bus;
+    AP_Int8 i2c_address;
+    AP_Int8 channel;
+
+    uint8_t reg_shunt;
+    uint8_t reg_bus;
 };
+
+#endif  // AP_BATTERY_INA3221_ENABLED

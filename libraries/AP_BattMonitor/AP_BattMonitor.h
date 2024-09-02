@@ -117,9 +117,7 @@ public:
         EFI                            = 27,
         AD7091R5                       = 28,
         Scripting                      = 29,
-        INA3221_CH1                = 40,
-        INA3221_CH2                = 41,
-        INA3221_CH3                = 42,
+        INA3221                        = 40,
     };
 
     FUNCTOR_TYPEDEF(battery_failsafe_handler_fn_t, void, const char *, const int8_t);

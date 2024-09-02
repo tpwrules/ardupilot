@@ -608,27 +608,11 @@ AP_BattMonitor::init()
 #if HAL_BATTMON_INA3221_ENABLED
             case Type::INA3221_CH1:
 //                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
-                drivers[instance] = new AP_BattMonitor_INA3221(
+                drivers[instance] = NEW_NOTHROW AP_BattMonitor_INA3221(
                     *this,
                     state[instance],
-                    _params[instance],
-                    Type::INA3221_CH1);
-                break;
-            case Type::INA3221_CH2:
-//                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
-                drivers[instance] = new AP_BattMonitor_INA3221(
-                    *this,
-                    state[instance],
-                    _params[instance],
-                    Type::INA3221_CH2);
-                break;
-            case Type::INA3221_CH3:
-//                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
-                drivers[instance] = new AP_BattMonitor_INA3221(
-                    *this,
-                    state[instance],
-                    _params[instance],
-                    Type::INA3221_CH3);
+                    _params[instance]
+                );
                 break;
 #endif  // HAL_BATTMON_INA3221_ENABLED
             case Type::NONE:

@@ -1,3 +1,7 @@
+#include "AP_BattMonitor_config.h"
+
+#if AP_BATTERY_INA3221_ENABLED
+
 #include "AP_BattMonitor_INA3221.h"
 
 #include <AP_HAL/utility/sparse-endian.h>
@@ -18,16 +22,46 @@
 #define debug(fmt, args ...)
 #endif
 
+const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
+
+    // Param indexes must be between 56 and 61 to avoid conflict with other battery monitor param tables loaded by pointer
+
+    // @Param: I2C_BUS
+    // @DisplayName: Battery monitor I2C bus number
+    // @Description: Battery monitor I2C bus number
+    // @Range: 0 3
+    // @User: Advanced
+    // @RebootRequired: True
+    AP_GROUPINFO("I2C_BUS", 56, AP_BattMonitor_INA3221, i2c_bus, HAL_BATTMON_INA3221_BUS),
+
+    // @Param: I2C_ADDR
+    // @DisplayName: Battery monitor I2C address
+    // @Description: Battery monitor I2C address. If this is zero then probe list of supported addresses
+    // @Range: 0 127
+    // @User: Advanced
+    // @RebootRequired: True
+    AP_GROUPINFO("I2C_ADDR", 57, AP_BattMonitor_INA3221, i2c_address, HAL_BATTMON_INA3221_ADDR),
+
+    // @Param: CHANNEL
+    // @DisplayName: INA3221 channel
+    // @Description: INA3221 channel to return data for
+    // @Range: 0 127
+    // @User: Advanced
+    // @RebootRequired: True
+    AP_GROUPINFO("CHANNEL", 58, AP_BattMonitor_INA3221, channel, 1),
+};
+
 extern const AP_HAL::HAL &hal;
 
 AP_BattMonitor_INA3221::AP_BattMonitor_INA3221(
     AP_BattMonitor &mon,
     AP_BattMonitor::BattMonitor_State &mon_state,
-    AP_BattMonitor_Params &params,
-    AP_BattMonitor::Type type) :
+    AP_BattMonitor_Params &params) :
     AP_BattMonitor_Backend(mon, mon_state, params),
     _type(type)
 {
+    AP_Param::setup_object_defaults(this, var_info);
+    _state.var_info = var_info;
 }
 
 bool AP_BattMonitor_INA3221::read_register(uint8_t addr, uint16_t &ret)
@@ -57,6 +91,23 @@ bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
     }
 
     debug("INA3221: probe @0x%02x on bus %u", init_address, _params._i2c_bus.get());
+    switch (channel.get()) {
+    case 1:
+        reg_shunt = 1;
+        reg_bus = 2;
+        break;
+    case 2:
+        reg_shunt = 3;
+        reg_bus = 4;
+        break;
+    case 3:
+        reg_shunt = 5;
+        reg_bus = 6;
+        break;
+    default:
+        debug("Invalid channel number");
+        return false;
+    }
 
     WITH_SEMAPHORE(_dev->get_semaphore());
 
@@ -119,24 +170,6 @@ bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
 
 void AP_BattMonitor_INA3221::_timer(void)
 {
-    uint8_t reg_shunt;
-    uint8_t reg_bus;
-    switch (_type) {
-    case AP_BattMonitor::Type::INA3221_CH1:
-        reg_shunt = 1;
-        reg_bus = 2;
-        break;
-    case AP_BattMonitor::Type::INA3221_CH2:
-        reg_shunt = 3;
-        reg_bus = 4;
-        break;
-    case AP_BattMonitor::Type::INA3221_CH3:
-        reg_shunt = 5;
-        reg_bus = 6;
-        break;
-    default:
-        return;
-    }
     uint16_t shunt_voltage;
     if (!read_register(reg_shunt, shunt_voltage)) {
         return;
@@ -189,3 +222,5 @@ void AP_BattMonitor_INA3221::read()
         gcs().send_text(MAV_SEVERITY_INFO, "%u: voltage:%f current:%f\n", (unsigned)_state.last_time_micros, _state.voltage, _state.current_amps);
     }
 }
+
+#endif  // AP_BATTERY_INA3221_ENABLED
