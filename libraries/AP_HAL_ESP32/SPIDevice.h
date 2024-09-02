@@ -74,6 +74,8 @@ public:
         uint32_t period_usec, AP_HAL::Device::PeriodicCb) override;
     bool adjust_periodic_callback(AP_HAL::Device::PeriodicHandle h, uint32_t period_usec) override;
 
+    bool set_chip_select(bool set) override;
+
 private:
     SPIBus &bus;
     SPIDeviceDesc &device_desc;
@@ -83,6 +85,7 @@ private:
     spi_device_handle_t high_speed_dev_handle;
     spi_device_handle_t current_handle();
     void acquire_bus(bool accuire);
+    bool cs_locked;
 };
 
 class SPIDeviceManager : public AP_HAL::SPIDeviceManager
