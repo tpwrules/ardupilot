@@ -100,7 +100,7 @@ void RCOutput::init()
         mcpwm_gpio_init(unit, signal, outputs_pins[i]);
         //Setup MCPWM module
         mcpwm_config_t pwm_config;
-        pwm_config.frequency = 50;    //frequency = 50Hz, i.e. for every servo motor time period should be 20ms
+        pwm_config.frequency = 16000;    //frequency = 50Hz, i.e. for every servo motor time period should be 20ms
         pwm_config.cmpr_a = 0;    //duty cycle of PWMxA = 0
         pwm_config.cmpr_b = 0;    //duty cycle of PWMxb = 0
         pwm_config.counter_mode = MCPWM_UP_COUNTER;
@@ -122,8 +122,8 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
 
     for (uint8_t i = 0; i < MAX_CHANNELS; i++) {
         if (chmask & 1 << i) {
-            pwm_out &out = pwm_group_list[i];
-            mcpwm_set_frequency(out.unit_num, out.timer_num, freq_hz);
+            // pwm_out &out = pwm_group_list[i];
+            // mcpwm_set_frequency(out.unit_num, out.timer_num, freq_hz);
         }
     }
 }
@@ -248,7 +248,16 @@ void RCOutput::write_int(uint8_t chan, uint16_t period_us)
     }
 
     pwm_out &out = pwm_group_list[chan];
-    mcpwm_set_duty_in_us(out.unit_num, out.timer_num, out.op, period_us);
+    // hack, todo need to implement set_output_mode
+    float duty = 0;
+    if (period_us <= _esc_pwm_min) {
+        duty = 0;
+    } else if (period_us >= _esc_pwm_max) {
+        duty = 1;
+    } else {
+        duty = ((float)(period_us - _esc_pwm_min))/(_esc_pwm_max - _esc_pwm_min);
+    }
+    mcpwm_set_duty(out.unit_num, out.timer_num, out.op, 100.f*duty); // actually percent
 }
 
 /*
