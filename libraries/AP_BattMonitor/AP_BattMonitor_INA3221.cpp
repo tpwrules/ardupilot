@@ -171,10 +171,10 @@ void AP_BattMonitor_INA3221::init()
         0b111, // continuous operation
             0b111, // 8ms conversion time for shunt voltage
             0b111, // 8ms conversion time for bus voltage
-            0b111, // 1024 samples / average
-            0b1,  // enable ch1
+            0b100, // 128 samples / average
+            0b0,  // disable ch1
             0b1,  // enable ch2
-            0b1,  // enable ch3
+            0b0,  // disable ch3
             0b0    // don't reset...
             };
 
@@ -231,6 +231,8 @@ void AP_BattMonitor_INA3221::AddressDriver::timer(void)
                 continue;
             }
             WITH_SEMAPHORE(state->sem);
+            // won't get set back to false but w/e for on-board device
+            state->state->healthy = true;
             state->state->voltage = bus_voltage/32768.0 * 26;
             state->state->current_amps = shunt_voltage * 0.56f;
             state->state->last_time_micros = AP_HAL::micros();
@@ -240,11 +242,6 @@ void AP_BattMonitor_INA3221::AddressDriver::timer(void)
 
 void AP_BattMonitor_INA3221::read()
 {
-    static uint32_t last_print;
-    if (AP_HAL::millis() - last_print > 5000) {
-        last_print = AP_HAL::millis();
-        gcs().send_text(MAV_SEVERITY_INFO, "%u: voltage:%f current:%f", (unsigned)_state.last_time_micros, _state.voltage, _state.current_amps);
-    }
 }
 
 #endif  // AP_BATTERY_INA3221_ENABLED
