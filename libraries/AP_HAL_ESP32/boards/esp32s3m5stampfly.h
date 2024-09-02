@@ -88,7 +88,8 @@
 
 // SPI per-device setup, including speeds, etc.
 #define HAL_ESP32_SPI_DEVICES \
-    {.name= "bmi270", .bus=0, .device=0, .cs=GPIO_NUM_46, .mode=3, .lspeed=10*MHZ, .hspeed=10*MHZ},
+    {.name= "bmi270", .bus=0, .device=0, .cs=GPIO_NUM_46, .mode=3, .lspeed=10*MHZ, .hspeed=10*MHZ}, \
+    {.name="pixartflow", .bus=0, .device=1, .cs=GPIO_NUM_12, .mode=3, .lspeed=2*MHZ, .hspeed=2*MHZ},
 
 //I2C bus list
 #define HAL_ESP32_I2C_BUSES \
@@ -118,3 +119,5 @@
 
 #define AP_FILESYSTEM_ESP32_ENABLED 0
 #define AP_SCRIPTING_ENABLED 0
+
+#define AP_OPTICALFLOW_ENABLED 1
