@@ -169,9 +169,9 @@ void AP_BattMonitor_INA3221::init()
         uint16_t word;
     } configuration {
         0b111, // continuous operation
-            0b111, // 8ms conversion time for shunt voltage
-            0b111, // 8ms conversion time for bus voltage
-            0b100, // 128 samples / average
+            0b110, // 4ms conversion time for shunt voltage
+            0b110, // 4ms conversion time for bus voltage
+            0b010, // 16 samples / average
             0b0,  // disable ch1
             0b1,  // enable ch2
             0b0,  // disable ch3
