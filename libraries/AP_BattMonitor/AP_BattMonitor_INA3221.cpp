@@ -30,6 +30,8 @@
 #define HAL_BATTMON_INA3221_ADDR 64
 #endif
 
+struct AP_BattMonitor_INA3221::AddressDriver AP_BattMonitor_INA3221::address_driver[2];
+
 const AP_Param::GroupInfo AP_BattMonitor_INA3221::var_info[] = {
 
     // Param indexes must be between 56 and 61 to avoid conflict with other battery monitor param tables loaded by pointer
@@ -71,20 +73,20 @@ AP_BattMonitor_INA3221::AP_BattMonitor_INA3221(
     _state.var_info = var_info;
 }
 
-bool AP_BattMonitor_INA3221::read_register(uint8_t addr, uint16_t &ret)
+bool AP_BattMonitor_INA3221::AddressDriver::read_register(uint8_t addr, uint16_t &ret)
 {
-    if (!_dev->transfer(&addr, 1, (uint8_t*)&ret, 2)) {
+    if (!dev->transfer(&addr, 1, (uint8_t*)&ret, 2)) {
         return false;
     }
     ret = be16toh(ret);
     return true;
 }
 
-bool AP_BattMonitor_INA3221::write_register(uint8_t addr, uint16_t val)
+bool AP_BattMonitor_INA3221::AddressDriver::write_register(uint8_t addr, uint16_t val)
 {
     uint8_t buf[3] { addr, uint8_t(val >> 8), uint8_t(val & 0xFF) };
 
-    return _dev->transfer(buf, sizeof(buf), nullptr, 0);
+    return dev->transfer(buf, sizeof(buf), nullptr, 0);
 }
 
 #define REG_CONFIGURATION 0x00
@@ -92,105 +94,127 @@ bool AP_BattMonitor_INA3221::write_register(uint8_t addr, uint16_t val)
 #define REG_DIE_ID 0xFF
 void AP_BattMonitor_INA3221::init()
 {
-    _dev = std::move(hal.i2c_mgr->get_device(i2c_bus, i2c_address, 100000, true, 20));
-    if (!_dev) {
-        return;
-    }
-
     debug("INA3221: probe @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
-    switch (channel.get()) {
-    case 1:
-        reg_shunt = 1;
-        reg_bus = 2;
-        break;
-    case 2:
-        reg_shunt = 3;
-        reg_bus = 4;
-        break;
-    case 3:
-        reg_shunt = 5;
-        reg_bus = 6;
-        break;
-    default:
-        debug("Invalid channel number");
-        return;
+
+    AddressDriver *d;
+    // check to see if we already have the underlying driver reading the bus:
+    for (uint8_t i=0; i<address_driver_count; i++) {
+        d =&address_driver[i];
+        if (! d->dev) {
+            continue;
+        }
+        if (d->address != i2c_address.get()) {
+            continue;
+        }
+        if (d->bus != i2c_bus.get()) {
+            continue;
+        }
+        debug("Reusing INA3221 driver @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
     }
 
-    WITH_SEMAPHORE(_dev->get_semaphore());
+    if (d == nullptr) {
+        d = &address_driver[address_driver_count];
+        d->dev = std::move(hal.i2c_mgr->get_device(i2c_bus, i2c_address, 100000, true, 20));
+        if (!d->dev) {
+            return;
+        }
+        d->bus = i2c_bus;
+        d->address = i2c_address;
+        d->channel_mask |= (1U << (uint8_t(channel.get())));
+        d->state = &_state;
 
-    // check manufacturer_id
-    uint16_t manufacturer_id;
-    if (!read_register(REG_MANUFACTURER_ID, manufacturer_id)) {
-        debug("read register (%u (0x%02x)) failed", REG_MANUFACTURER_ID, REG_MANUFACTURER_ID);
-        return;
-    }
-    if (manufacturer_id != 0x5449) {  // 8.6.1 p24
-        debug("Bad manufacturer_id: 0x%02x", manufacturer_id);
-        return;
-    }
+        WITH_SEMAPHORE(d->dev->get_semaphore());
 
-    uint16_t die_id;
-    if (!read_register(REG_DIE_ID, die_id)) {
-        debug("Bad die: 0x%02x", manufacturer_id);
-        return;
-    }
-    if (die_id != 0x3220) {  // 8.6.1 p24
-        return;
-    }
+        // check manufacturer_id
+        uint16_t manufacturer_id;
+        if (!d->read_register(REG_MANUFACTURER_ID, manufacturer_id)) {
+            debug("read register (%u (0x%02x)) failed", REG_MANUFACTURER_ID, REG_MANUFACTURER_ID);
+            return;
+        }
+        if (manufacturer_id != 0x5449) {  // 8.6.1 p24
+            debug("Bad manufacturer_id: 0x%02x", manufacturer_id);
+            return;
+        }
 
-    debug("Found INA3221 @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
+        uint16_t die_id;
+        if (!d->read_register(REG_DIE_ID, die_id)) {
+            debug("Bad die: 0x%02x", manufacturer_id);
+            return;
+        }
+        if (die_id != 0x3220) {  // 8.6.1 p24
+            return;
+        }
 
-    // reset the device:
-    union {
-        struct PACKED {
-            uint16_t mode : 3;
-            uint16_t shunt_voltage_conversiontime : 3;
-            uint16_t bus_voltage_conversiontime : 3;
-            uint16_t averaging_mode : 3;
-            uint16_t ch1_enable : 1;
-            uint16_t ch2_enable : 1;
-            uint16_t ch3_enable : 1;
-            uint16_t reset : 1;
-        } bits;
-        uint16_t word;
-    } configuration {
+        debug("Found INA3221 @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
+
+        // reset the device:
+        union {
+            struct PACKED {
+                uint16_t mode : 3;
+                uint16_t shunt_voltage_conversiontime : 3;
+                uint16_t bus_voltage_conversiontime : 3;
+                uint16_t averaging_mode : 3;
+                uint16_t ch1_enable : 1;
+                uint16_t ch2_enable : 1;
+                uint16_t ch3_enable : 1;
+                uint16_t reset : 1;
+            } bits;
+            uint16_t word;
+        } configuration {
             0b111, // continuous operation
-            0b111, // 8ms conversion time for shunt voltage
-            0b111, // 8ms conversion time for bus voltage
-            0b111, // 1024 samples / average
-            0b1,  // enable ch1
-            0b1,  // enable ch2
-            0b1,  // enable ch3
-            0b0    // don't reset...
-                };
+                0b111, // 8ms conversion time for shunt voltage
+                0b111, // 8ms conversion time for bus voltage
+                0b111, // 1024 samples / average
+                0b1,  // enable ch1
+                0b1,  // enable ch2
+                0b1,  // enable ch3
+                0b0    // don't reset...
+        };
 
-    if (!write_register(REG_CONFIGURATION, configuration.word)) {
-        return;
+        if (!d->write_register(REG_CONFIGURATION, configuration.word)) {
+            return;
+        }
+
+        address_driver_count++;
+
+        d->register_timer();
     }
-
-    _dev->register_periodic_callback(
-        100000,
-        FUNCTOR_BIND_MEMBER(&AP_BattMonitor_INA3221::_timer, void));
 
     return;
 }
 
-void AP_BattMonitor_INA3221::_timer(void)
+void AP_BattMonitor_INA3221::AddressDriver::register_timer(void)
+{
+    dev->register_periodic_callback(
+        100000,
+        FUNCTOR_BIND_MEMBER(&AP_BattMonitor_INA3221::AddressDriver::timer, void));
+}
+
+void AP_BattMonitor_INA3221::AddressDriver::timer(void)
 {
     uint16_t shunt_voltage;
-    if (!read_register(reg_shunt, shunt_voltage)) {
-        return;
-    }
-    uint16_t bus_voltage;
-    if (!read_register(reg_bus, bus_voltage)) {
-        return;
-    }
+    for (uint8_t i=1; i<=3; i++) {
+        if ((address_driver->channel_mask & (1U<<i)) == 0) {
+            continue;
+        }
+        const uint8_t channel_offset = (i-1)*2;
+        const uint8_t reg_shunt = 1 + channel_offset;
+        const uint8_t reg_bus = 2 + channel_offset;
 
-    //transfer readings to front end:
-    WITH_SEMAPHORE(_sem);
-    _state.voltage = bus_voltage;
-    _state.current_amps = shunt_voltage * 0.56f;
-    _state.last_time_micros = AP_HAL::micros();
+        if (!read_register(reg_shunt, shunt_voltage)) {
+            return;
+        }
+        uint16_t bus_voltage;
+        if (!read_register(reg_bus, bus_voltage)) {
+            return;
+        }
+
+        //transfer readings to front end:
+        WITH_SEMAPHORE(sem);
+        state->voltage = bus_voltage;
+        state->current_amps = shunt_voltage * 0.56f;
+        state->last_time_micros = AP_HAL::micros();
+    }
 }
 
 void AP_BattMonitor_INA3221::read()

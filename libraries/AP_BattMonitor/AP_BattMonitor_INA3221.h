@@ -42,24 +42,24 @@ public:
 
 private:
 
-    bool init_at_address(uint8_t addr);
-
-    HAL_Semaphore _sem;
-    AP_HAL::OwnPtr<AP_HAL::I2CDevice> _dev;
-
-    uint8_t address;
-
-    bool read_register(uint8_t addr, uint16_t &ret);
-    bool write_register(uint8_t addr, uint16_t val);
-
-    void _timer(void);
-
     AP_Int8 i2c_bus;
     AP_Int8 i2c_address;
     AP_Int8 channel;
 
-    uint8_t reg_shunt;
-    uint8_t reg_bus;
+    static struct AddressDriver {
+        bool read_register(uint8_t addr, uint16_t &ret);
+        bool write_register(uint8_t addr, uint16_t val);
+        void timer(void);
+        void register_timer();
+
+        HAL_Semaphore sem;
+        AP_HAL::OwnPtr<AP_HAL::I2CDevice> dev;
+        uint8_t bus;
+        uint8_t address;
+        uint8_t channel_mask;
+        AP_BattMonitor::BattMonitor_State *state;
+    } address_driver[2];
+    uint8_t address_driver_count;
 };
 
 #endif  // AP_BATTERY_INA3221_ENABLED
