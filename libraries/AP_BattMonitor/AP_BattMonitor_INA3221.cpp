@@ -22,7 +22,15 @@
 #define debug(fmt, args ...)
 #endif
 
-const AP_Param::GroupInfo AP_BattMonitor_INA2XX::var_info[] = {
+#ifndef HAL_BATTMON_INA3221_BUS
+#define HAL_BATTMON_INA3221_BUS 0
+#endif
+
+#ifndef HAL_BATTMON_INA3221_ADDR
+#define HAL_BATTMON_INA3221_ADDR 64
+#endif
+
+const AP_Param::GroupInfo AP_BattMonitor_INA3221::var_info[] = {
 
     // Param indexes must be between 56 and 61 to avoid conflict with other battery monitor param tables loaded by pointer
 
@@ -57,8 +65,7 @@ AP_BattMonitor_INA3221::AP_BattMonitor_INA3221(
     AP_BattMonitor &mon,
     AP_BattMonitor::BattMonitor_State &mon_state,
     AP_BattMonitor_Params &params) :
-    AP_BattMonitor_Backend(mon, mon_state, params),
-    _type(type)
+    AP_BattMonitor_Backend(mon, mon_state, params)
 {
     AP_Param::setup_object_defaults(this, var_info);
     _state.var_info = var_info;
@@ -83,14 +90,14 @@ bool AP_BattMonitor_INA3221::write_register(uint8_t addr, uint16_t val)
 #define REG_CONFIGURATION 0x00
 #define REG_MANUFACTURER_ID 0xFE
 #define REG_DIE_ID 0xFF
-bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
+void AP_BattMonitor_INA3221::init()
 {
-    _dev = std::move(hal.i2c_mgr->get_device(_params._i2c_bus, init_address, 100000, true, 20));
+    _dev = std::move(hal.i2c_mgr->get_device(i2c_bus, i2c_address, 100000, true, 20));
     if (!_dev) {
-        return false;
+        return;
     }
 
-    debug("INA3221: probe @0x%02x on bus %u", init_address, _params._i2c_bus.get());
+    debug("INA3221: probe @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
     switch (channel.get()) {
     case 1:
         reg_shunt = 1;
@@ -106,7 +113,7 @@ bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
         break;
     default:
         debug("Invalid channel number");
-        return false;
+        return;
     }
 
     WITH_SEMAPHORE(_dev->get_semaphore());
@@ -115,23 +122,23 @@ bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
     uint16_t manufacturer_id;
     if (!read_register(REG_MANUFACTURER_ID, manufacturer_id)) {
         debug("read register (%u (0x%02x)) failed", REG_MANUFACTURER_ID, REG_MANUFACTURER_ID);
-        return false;
+        return;
     }
     if (manufacturer_id != 0x5449) {  // 8.6.1 p24
         debug("Bad manufacturer_id: 0x%02x", manufacturer_id);
-        return false;
+        return;
     }
 
     uint16_t die_id;
     if (!read_register(REG_DIE_ID, die_id)) {
         debug("Bad die: 0x%02x", manufacturer_id);
-        return false;
+        return;
     }
     if (die_id != 0x3220) {  // 8.6.1 p24
-        return false;
+        return;
     }
 
-    debug("Found INA3221 @0x%02x on bus %u", init_address, _params._i2c_bus.get());
+    debug("Found INA3221 @0x%02x on bus %u", i2c_address.get(), i2c_bus.get());
 
     // reset the device:
     union {
@@ -158,14 +165,14 @@ bool AP_BattMonitor_INA3221::init_at_address(uint8_t init_address)
                 };
 
     if (!write_register(REG_CONFIGURATION, configuration.word)) {
-        return false;
+        return;
     }
 
     _dev->register_periodic_callback(
         100000,
         FUNCTOR_BIND_MEMBER(&AP_BattMonitor_INA3221::_timer, void));
 
-    return true;
+    return;
 }
 
 void AP_BattMonitor_INA3221::_timer(void)
@@ -184,34 +191,6 @@ void AP_BattMonitor_INA3221::_timer(void)
     _state.voltage = bus_voltage;
     _state.current_amps = shunt_voltage * 0.56f;
     _state.last_time_micros = AP_HAL::micros();
-}
-
-void AP_BattMonitor_INA3221::init()
-{
-    // check to see which address we should start probing at:
-    uint8_t probe_address = 64;
-    for (uint8_t i = 0; i < AP::battery()._num_instances; i++) {
-        if (AP::battery().get_type(i) != _type) {
-            // different type...
-            continue;
-        }
-        const AP_BattMonitor_INA3221 *driver = ((AP_BattMonitor_INA3221*)AP::battery().drivers[i]);
-        if (driver != nullptr) {
-            if (driver->address >= probe_address) {
-                probe_address = driver->address + 1;
-            }
-            continue;
-        }
-        break;
-    }
-
-    // now look for the next one:
-    for (; probe_address <= 67; probe_address++) {
-        if (!init_at_address(probe_address)) {
-            continue;
-        }
-        break;
-    }
 }
 
 void AP_BattMonitor_INA3221::read()

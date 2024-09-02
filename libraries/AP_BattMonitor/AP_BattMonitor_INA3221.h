@@ -38,6 +38,8 @@ public:
         return true;
     }
 
+    static const struct AP_Param::GroupInfo var_info[];
+
 private:
 
     bool init_at_address(uint8_t addr);

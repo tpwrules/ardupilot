@@ -605,8 +605,8 @@ AP_BattMonitor::init()
                 drivers[instance] = NEW_NOTHROW AP_BattMonitor_Scripting(*this, state[instance], _params[instance]);
                 break;
 #endif // AP_BATTERY_SCRIPTING_ENABLED
-#if HAL_BATTMON_INA3221_ENABLED
-            case Type::INA3221_CH1:
+#if AP_BATTERY_INA3221_ENABLED
+            case Type::INA3221:
 //                _params[instance]._i2c_bus.set_default(AP_BATTMONITOR_SMBUS_BUS_INTERNAL),
                 drivers[instance] = NEW_NOTHROW AP_BattMonitor_INA3221(
                     *this,
@@ -614,7 +614,7 @@ AP_BattMonitor::init()
                     _params[instance]
                 );
                 break;
-#endif  // HAL_BATTMON_INA3221_ENABLED
+#endif  // AP_BATTERY_INA3221_ENABLED
             case Type::NONE:
             default:
                 break;
