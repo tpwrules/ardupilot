@@ -216,14 +216,21 @@ void AP_BattMonitor_INA3221::AddressDriver::timer(void)
         const uint8_t reg_shunt = 1 + channel_offset;
         const uint8_t reg_bus = 2 + channel_offset;
 
-        uint16_t shunt_voltage;
-        if (!read_register(reg_shunt, shunt_voltage)) {
+        uint16_t shunt_val;
+        if (!read_register(reg_shunt, shunt_val)) {
             return;
         }
-        uint16_t bus_voltage;
-        if (!read_register(reg_bus, bus_voltage)) {
+        uint16_t bus_val;
+        if (!read_register(reg_bus, bus_val)) {
             return;
         }
+
+        // 3 lowest bits not used, 1 count is 8mV
+        const float bus_voltage = ((int16_t)bus_val >> 3)*8e-3;
+        // 3 lowest bits not used, 1 count is 40uV
+        const float shunt_voltage = ((int16_t)shunt_val >> 3)*40e-6;
+        const float shunt_resistance = 0.01; // on m5 stampfly
+        const float shunt_current = shunt_voltage/shunt_resistance; // I = V/R
 
         //transfer readings to front end:
         for (auto *state = statelist; state != nullptr; state = state->next) {
@@ -231,10 +238,12 @@ void AP_BattMonitor_INA3221::AddressDriver::timer(void)
                 continue;
             }
             WITH_SEMAPHORE(state->sem);
+
             // won't get set back to false but w/e for on-board device
             state->state->healthy = true;
-            state->state->voltage = bus_voltage/32768.0 * 26;
-            state->state->current_amps = shunt_voltage * 0.56f;
+
+            state->state->voltage = bus_voltage;
+            state->state->current_amps = shunt_current;
             state->state->last_time_micros = AP_HAL::micros();
         }
     }
