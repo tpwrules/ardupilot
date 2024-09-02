@@ -85,6 +85,11 @@ int SITL::INA3221::rdwr(I2C::i2c_rdwr_ioctl_data *&data)
     return -1;
 };
 
+static uint16_t convert_voltage(float voltage) {
+    return (voltage / 26) * 32768;
+}
+
+
 void SITL::INA3221::update(const class Aircraft &aircraft)
 {
     if (registers.byname.configuration.bits.reset != 0) {
@@ -105,7 +110,7 @@ void SITL::INA3221::update(const class Aircraft &aircraft)
         registers.byname.configuration.bits.mode &= ~0b011;
     }
 
-    // channel 1 gets the first simulated battery's voltage and current:
+    // channel 2 gets the first simulated battery's voltage and current:
     // see 8.6.6.2 on page 27 for the whole "40uV" thing
     if (registers.byname.configuration.bits.ch1_enable) {
         if (update_bus) {
@@ -126,6 +131,16 @@ void SITL::INA3221::update(const class Aircraft &aircraft)
             registers.byname.Channel_2_Bus_Voltage = AP::sitl()->state.battery_voltage/26 * 32768; // FIXME
         }
     }
+
+    if (registers.byname.configuration.bits.ch3_enable) {
+        if (update_bus) {
+            registers.byname.Channel_3_Bus_Voltage = convert_voltage(3.1415);
+        }
+        if (update_shunt) {
+            registers.byname.Channel_3_Shunt_Voltage = 2.718/0.56;
+        }
+    }
+
 }
 
 #endif  // AP_SIM_INA3221_ENABLED

@@ -193,37 +193,6 @@ class AutoTestTracker(vehicle_test_suite.TestSuite):
                 raise NotAchievedException("GPS_RAW not tracking simstate yaw")
             self.progress(f"yaw match ({gps_raw_hdg} vs {sim_hdg}")
 
-    def INA3221(self):
-        '''test INA3221 driver'''
-        self.set_parameters({
-            "BATT2_MONITOR": 40,
-            "BATT2_I2C_ADDR": 0x42,
-            "BATT2_I2C_BUS": 1,
-            "BATT2_CHANNEL": 1,
-
-            "BATT3_MONITOR": 40,
-            "BATT3_I2C_ADDR": 0x42,
-            "BATT3_I2C_BUS": 1,
-            "BATT3_CHANNEL": 1,
-
-            "BATT4_MONITOR": 40,
-            "BATT4_I2C_ADDR": 0x42,
-            "BATT4_I2C_BUS": 1,
-            "BATT4_CHANNEL": 1,
-        })
-        while True:
-            m = self.assert_receive_message('BATTERY_STATUS')
-            tstart = self.get_sim_time()
-            if m.instance == 1:
-                if self.get_sim_time - tstart > 10:
-                    raise NotAchievedException("Did not get second battery")
-                break
-
-            self.assert_message_field_values(m, {
-                "current_battery": 7.28 * 100,
-                "voltages[0]": 12 * 1000,
-            })
-
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestTracker, self).tests()
@@ -236,6 +205,5 @@ class AutoTestTracker(vehicle_test_suite.TestSuite):
             self.SCAN,
             self.BaseMessageSet,
             self.GPSForYaw,
-            self.INA3221,
         ])
         return ret
