@@ -100,7 +100,7 @@ void RCOutput::init()
         mcpwm_gpio_init(unit, signal, outputs_pins[i]);
         //Setup MCPWM module
         mcpwm_config_t pwm_config;
-        pwm_config.frequency = 16000;    //frequency = 50Hz, i.e. for every servo motor time period should be 20ms
+        pwm_config.frequency = 100000;    //frequency = 50Hz, i.e. for every servo motor time period should be 20ms
         pwm_config.cmpr_a = 0;    //duty cycle of PWMxA = 0
         pwm_config.cmpr_b = 0;    //duty cycle of PWMxb = 0
         pwm_config.counter_mode = MCPWM_UP_COUNTER;
