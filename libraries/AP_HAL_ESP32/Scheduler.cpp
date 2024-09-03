@@ -216,7 +216,7 @@ void IRAM_ATTR Scheduler::delay(uint16_t ms)
 
 void IRAM_ATTR Scheduler::delay_microseconds(uint16_t us)
 {
-    if (in_main_thread() && us < 100) {
+    if (us < 100) {
         esp_rom_delay_us(us);
     } else { // Minimum delay for FreeRTOS is 1ms
         uint32_t tick = portTICK_PERIOD_MS * 1000;
