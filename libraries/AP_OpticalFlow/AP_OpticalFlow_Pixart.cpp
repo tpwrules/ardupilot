@@ -168,7 +168,7 @@ bool AP_OpticalFlow_Pixart::setup_sensor(void)
 
     integral.last_frame_us = AP_HAL::micros();
 
-    _dev->register_periodic_callback(2000, FUNCTOR_BIND_MEMBER(&AP_OpticalFlow_Pixart::timer, void));
+    _dev->register_periodic_callback(10000, FUNCTOR_BIND_MEMBER(&AP_OpticalFlow_Pixart::timer, void));
     return true;
 }
 
@@ -264,7 +264,7 @@ void AP_OpticalFlow_Pixart::motion_burst(void)
     uint8_t reg = model==PIXART_3900?PIXART_REG_MOT_BURST:PIXART_REG_MOT_BURST2;
 
     _dev->transfer(&reg, 1, nullptr, 0);
-    hal.scheduler->delay_microseconds(150);
+    hal.scheduler->delay_microseconds(40);
 
     for (uint8_t i=0; i<sizeof(burst); i++) {
         _dev->transfer(nullptr, 0, &b[i], 1);
