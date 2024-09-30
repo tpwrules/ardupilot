@@ -118,7 +118,7 @@ bool I2CDevice::transfer(const uint8_t *send, uint32_t send_len,
         }
         i2c_master_stop(cmd);
 
-        TickType_t timeout = 1 + 16L * (send_len + recv_len) * 1000 / bus.bus_clock / portTICK_PERIOD_MS;
+        TickType_t timeout = 50; // 1 + 16L * (send_len + recv_len) * 1000 / bus.bus_clock / portTICK_PERIOD_MS;
         for (int i = 0; !result && i < _retries; i++) {
             result = (i2c_master_cmd_begin(bus.port, cmd, timeout) == ESP_OK);
             if (!result) {
