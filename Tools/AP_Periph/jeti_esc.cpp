@@ -110,12 +110,24 @@ void JETIESC_Telem::process_pulse_list(const uint32_t *widths, uint16_t n, bool 
 
 /*
   parse packet
+
+  Packet Format (during operation):
+  message is two 16 character zones with no separator
+  zone 1: "Sppp%   RRRRRrpm"
+    * S: status letter
+    * p: power/braking percent
+    * R: motor RPM
+  zone 2: "vv,vvV    ttttdC"
+    * v: voltage (note comma instead of decimal!!)
+    * t: temperature degrees Celsius
+    * d: degree symbol
  */
 bool JETIESC_Telem::parse_packet(void)
 {
     // 2. read the message out of the pkt and fill out the decoded. if
     //    everything looks good, return true, else return false.
-    //    possibly using sscanf? note that it's two lines and also not a string.
+    //    possibly using atoi/atof or sscanf? note that it's two lines and
+    //    also not null terminated.
     return false;
 
     // decoded.temp_degc = whatever;
