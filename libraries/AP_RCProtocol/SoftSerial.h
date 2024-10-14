@@ -23,6 +23,7 @@ public:
         SERIAL_CONFIG_8N1  = 0, // DSM, SRXL etc, 8 bit, no parity, 1 stop bit
         SERIAL_CONFIG_8E2I = 1, // SBUS, 8 bit, even parity, 2 stop bits, inverted
         SERIAL_CONFIG_8N1I = 2, // FPort inverted, 8 bit, no parity, 1 stop bit
+        SERIAL_CONFIG_9O2  = 3, // Jeti Telmetry, 9 bit, odd parity, 2 stop bits
     };
 
     SoftSerial(uint32_t baudrate, enum serial_config config);

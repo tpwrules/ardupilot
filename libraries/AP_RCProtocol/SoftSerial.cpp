@@ -37,6 +37,11 @@ SoftSerial::SoftSerial(uint32_t _baudrate, serial_config _config) :
         byte_width = 12;
         stop_mask = 0xC00;
         break;
+    case SERIAL_CONFIG_9O2:
+        data_width = 10;
+        byte_width = 13;
+        stop_mask = 0x1800;
+        break;
     }
 }
 
