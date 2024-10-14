@@ -80,13 +80,13 @@ private:
 
     bool pulse_input_enabled;
 
-#if HAL_USE_ICU == TRUE
-    ChibiOS::SoftSigReader sig_reader;
-#endif
+// #if HAL_USE_ICU == TRUE
+//     ChibiOS::SoftSigReader sig_reader;
+// #endif
 
-#if HAL_USE_EICU == TRUE
-    ChibiOS::SoftSigReaderInt sig_reader;
-#endif
+// #if HAL_USE_EICU == TRUE
+//     ChibiOS::SoftSigReaderInt sig_reader;
+// #endif
 
 #if HAL_WITH_IO_MCU
     uint32_t last_iomcu_us;
