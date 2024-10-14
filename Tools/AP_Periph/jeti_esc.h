@@ -35,6 +35,7 @@ public:
     };
 
     const JETIESC &get_telem(void) {
+        packet_decoded = false;
         return decoded;
     }
 
@@ -48,6 +49,7 @@ private:
     ChibiOS::SoftSigReaderInt sig_reader;
 #endif
 
+    void process_byte(uint8_t b);
     void process_pulse(uint32_t width_s0, uint32_t width_s1);
     void process_pulse_list(const uint32_t *widths, uint16_t n, bool need_swap);
 
@@ -58,10 +60,8 @@ private:
         uint8_t message[32];
         uint8_t footer; // 0xFF
     } pkt;
-
-    // uint8_t len;
-    // uint32_t last_read_ms;
-    // uint32_t error_count;
+    uint8_t len;
+    bool packet_decoded;
 
     struct JETIESC decoded;
 

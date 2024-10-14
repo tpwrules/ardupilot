@@ -25,6 +25,8 @@ extern const AP_HAL::HAL& hal;
 // constructor
 JETIESC_Telem::JETIESC_Telem(void)
 : ss{9700, SoftSerial::SERIAL_CONFIG_9O2}
+, packet_decoded(false)
+, len(0)
 {
 }
 
@@ -61,52 +63,17 @@ bool JETIESC_Telem::update()
         process_pulse(width_s0, width_s1);
     }
 #endif
-    // read new data and process from _ss
-    return false;
 
-    // uint32_t n = uart->available();
-    // if (n == 0) {
-    //     return false;
-    // }
+    return packet_decoded;
+}
 
-    // // we expect at least 50ms idle between frames
-    // uint32_t now = AP_HAL::millis();
-    // bool frame_gap = (now - last_read_ms) > 10;
+void JETIESC_Telem::process_byte(uint8_t b)
+{
+    // 1. process bytes into the pkt variable and form packets.
+    //    helpful to keep track of length
 
-    // last_read_ms = now;
-
-    // // don't read too much in one loop to prevent too high CPU load
-    // if (n > 500) {
-    //     n = 500;
-    // }
-    // if (len == 0 && !frame_gap) {
-    //     uart->discard_input();
-    //     return false;
-    // }
-
-    // if (frame_gap) {
-    //     len = 0;
-    // }
-
-    // bool ret = false;
-
-    // while (n--) {
-    //     uint8_t b = uart->read();
-    //     //hal.console->printf("t=%u 0x%02x\n", now, b);
-    //     if (len == 0 && b != TELEM_HEADER) {
-    //         continue;
-    //     }
-    //     if (len == 1 && b != TELEM_LEN) {
-    //         continue;
-    //     }
-    //     uint8_t *buf = (uint8_t *)&pkt;
-    //     buf[len++] = b;
-    //     if (len == sizeof(pkt)) {
-    //         ret = parse_packet();
-    //         len = 0;
-    //     }
-    // }
-    // return ret;
+    // once ready to parse the packet:
+    packet_decoded = parse_packet();
 }
 
 void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
@@ -114,6 +81,7 @@ void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
     uint8_t b;
     if (ss.process_pulse(width_s0, width_s1, b)) {
         can_printf("%c\n", b);
+        process_byte(b);
     }
 }
 
@@ -145,29 +113,12 @@ void JETIESC_Telem::process_pulse_list(const uint32_t *widths, uint16_t n, bool 
  */
 bool JETIESC_Telem::parse_packet(void)
 {
-    // decode the bits from the thing lol
+    // 2. read the message out of the pkt and fill out the decoded. if
+    //    everything looks good, return true, else return false.
+    //    possibly using sscanf? note that it's two lines and also not a string.
     return false;
 
-    // uint16_t crc = calc_crc((uint8_t *)&pkt, sizeof(pkt)-2);
-    // if (crc != pkt.crc) {
-    //     return false;
-    // }
-
-    // decoded.counter = be32toh(pkt.counter);
-    // decoded.throttle_req = be16toh(pkt.throttle_req);
-    // decoded.throttle = be16toh(pkt.throttle);
-    // decoded.rpm = be16toh(pkt.rpm) * 5.0 / 7.0; // scale from eRPM to RPM
-    // decoded.voltage = be16toh(pkt.voltage) * 0.1;
-    // decoded.phase_current = int16_t(be16toh(pkt.phase_current)) * 0.01;
-    // decoded.current = int16_t(be16toh(pkt.current)) * 0.01;
-    // decoded.mos_temperature = temperature_decode(pkt.mos_temperature);
-    // decoded.cap_temperature = temperature_decode(pkt.cap_temperature);
-    // decoded.status = be16toh(pkt.status);
-    // if (decoded.status != 0) {
-    //     decoded.error_count++;
-    // }
-
-    // return true;
+    // decoded.temp_degc = whatever;
 }
 
 void AP_Periph_FW::jetiesc_telem_update()
@@ -180,10 +131,10 @@ void AP_Periph_FW::jetiesc_telem_update()
     uavcan_equipment_esc_Status pkt {};
     pkt.esc_index = 0; // TODO: figure out how to choose nicely
     pkt.voltage = t.voltage;
-    pkt.current = 420;
-    pkt.temperature = C_TO_KELVIN(0);
-    pkt.rpm = 69;
-    pkt.power_rating_pct = 0;
+    pkt.current = 0;
+    pkt.temperature = C_TO_KELVIN(t.temp_degc);
+    pkt.rpm = t.rpm;
+    pkt.power_rating_pct = t.power_pct;
     pkt.error_count = 0;
 
     uint8_t buffer[UAVCAN_EQUIPMENT_ESC_STATUS_MAX_SIZE];
