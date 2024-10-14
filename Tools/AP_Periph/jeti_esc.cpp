@@ -111,10 +111,9 @@ bool JETIESC_Telem::update()
 
 void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
 {
-    can_printf("pulse %ld %ld\n", width_s0, width_s1);
     uint8_t b;
     if (ss.process_pulse(width_s0, width_s1, b)) {
-        can_printf("got 0x%02X @ %ld\n", b, ss.get_byte_timestamp_us());
+        can_printf("%c\n", b);
     }
 }
 
