@@ -18,6 +18,7 @@
 #include <AP_HAL/AP_HAL_Boards.h>
 
 #include "AP_HAL_ChibiOS.h"
+#include "hal.h"
 
 #if HAL_USE_EICU == TRUE
 

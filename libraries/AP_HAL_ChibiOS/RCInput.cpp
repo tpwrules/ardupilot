@@ -44,6 +44,10 @@ void RCInput::init()
     AP::RC().init();
 #endif
 
+
+    _init = true;
+    return;
+
 #if HAL_USE_ICU == TRUE
     //attach timer channel on which the signal will be received
     sig_reader.attach_capture_timer(&RCIN_ICU_TIMER, RCIN_ICU_CHANNEL, STM32_RCIN_DMA_STREAM, STM32_RCIN_DMA_CHANNEL);
@@ -54,8 +58,6 @@ void RCInput::init()
     sig_reader.init(&RCININT_EICU_TIMER, RCININT_EICU_CHANNEL);
     pulse_input_enabled = true;
 #endif
-
-    _init = true;
 }
 
 /*

@@ -6,7 +6,17 @@
 
 #pragma once
 
+#include <AP_HAL_ChibiOS/AP_HAL_ChibiOS.h>
+
 #include <AP_RCProtocol/SoftSerial.h>
+
+#if HAL_USE_ICU == TRUE
+#include <AP_HAL_ChibiOS/SoftSigReader.h>
+#endif
+
+#if HAL_USE_EICU == TRUE
+#include <AP_HAL_ChibiOS/SoftSigReaderInt.h>
+#endif
 
 #ifdef HAL_PERIPH_ENABLE_JETIESC
 
@@ -29,7 +39,19 @@ public:
     }
 
 private:
-    SoftSerial *ss;
+    // software serial and pulse stuff
+#if HAL_USE_ICU == TRUE
+    ChibiOS::SoftSigReader sig_reader;
+#endif
+
+#if HAL_USE_EICU == TRUE
+    ChibiOS::SoftSigReaderInt sig_reader;
+#endif
+
+    void process_pulse(uint32_t width_s0, uint32_t width_s1);
+    void process_pulse_list(const uint32_t *widths, uint16_t n, bool need_swap);
+
+    SoftSerial ss;
 
     struct PACKED {
         uint8_t header; // 0xFE
@@ -44,6 +66,8 @@ private:
     struct JETIESC decoded;
 
     bool parse_packet(void);
+
+
 };
 
 #endif // HAL_PERIPH_ENABLE_JETIESC

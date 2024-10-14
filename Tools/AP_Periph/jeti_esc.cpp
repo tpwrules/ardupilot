@@ -8,7 +8,7 @@
  */
 
 #include "AP_Periph.h"
-#include "hwing_esc.h"
+#include "jeti_esc.h"
 #include <AP_HAL/utility/sparse-endian.h>
 #include <dronecan_msgs.h>
 
@@ -24,12 +24,21 @@ extern const AP_HAL::HAL& hal;
 
 // constructor
 JETIESC_Telem::JETIESC_Telem(void)
+: ss{9700, SoftSerial::SERIAL_CONFIG_9O2}
 {
 }
 
 void JETIESC_Telem::init()
 {
-    // figure out how to print
+    can_printf("jeti init\n");
+#if HAL_USE_ICU == TRUE
+    //attach timer channel on which the signal will be received
+    sig_reader.attach_capture_timer(&RCIN_ICU_TIMER, RCIN_ICU_CHANNEL, STM32_RCIN_DMA_STREAM, STM32_RCIN_DMA_CHANNEL);
+#endif
+
+#if HAL_USE_EICU == TRUE
+    sig_reader.init(&RCININT_EICU_TIMER, RCININT_EICU_CHANNEL);
+#endif
 }
 
 /*
@@ -37,6 +46,21 @@ void JETIESC_Telem::init()
  */
 bool JETIESC_Telem::update()
 {
+#if HAL_USE_ICU == TRUE
+    const uint32_t *p;
+    uint32_t n;
+    while ((p = (const uint32_t *)sig_reader.sigbuf.readptr(n)) != nullptr) {
+        process_pulse_list(p, n*2, sig_reader.need_swap);
+        sig_reader.sigbuf.advance(n);
+    }
+#endif
+
+#if HAL_USE_EICU == TRUE
+    uint32_t width_s0, width_s1;
+    while(sig_reader.read(width_s0, width_s1)) {
+        process_pulse(width_s0, width_s1);
+    }
+#endif
     // read new data and process from _ss
     return false;
 
@@ -85,6 +109,38 @@ bool JETIESC_Telem::update()
     // return ret;
 }
 
+void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
+{
+    can_printf("pulse %ld %ld\n", width_s0, width_s1);
+    uint8_t b;
+    if (ss.process_pulse(width_s0, width_s1, b)) {
+        can_printf("got 0x%02X @ %ld\n", b, ss.get_byte_timestamp_us());
+    }
+}
+
+/*
+  process an array of pulses. n must be even
+ */
+void JETIESC_Telem::process_pulse_list(const uint32_t *widths, uint16_t n, bool need_swap)
+{
+    if (n & 1) {
+        return;
+    }
+    while (n) {
+        uint32_t widths0 = widths[0];
+        uint32_t widths1 = widths[1];
+        if (need_swap) {
+            uint32_t tmp = widths1;
+            widths1 = widths0;
+            widths0 = tmp;
+        }
+        widths1 -= widths0;
+        process_pulse(widths0, widths1);
+        widths += 2;
+        n -= 2;
+    }
+}
+
 /*
   parse packet
  */
@@ -117,14 +173,14 @@ bool JETIESC_Telem::parse_packet(void)
 
 void AP_Periph_FW::jetiesc_telem_update()
 {
-    // if (!hwesc_telem.update()) {
-    //     return;
-    // }
-    // const JETIESC_Telem::JETIESC &t = hwesc_telem.get_telem();
+    if (!jetiesc_telem.update()) {
+        return;
+    }
+    const JETIESC_Telem::JETIESC &t = jetiesc_telem.get_telem();
 
     uavcan_equipment_esc_Status pkt {};
     pkt.esc_index = 0; // TODO: figure out how to choose nicely
-    pkt.voltage = 0;
+    pkt.voltage = t.voltage;
     pkt.current = 420;
     pkt.temperature = C_TO_KELVIN(0);
     pkt.rpm = 69;
