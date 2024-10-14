@@ -264,6 +264,10 @@ void AP_Periph_FW::init()
     hwesc_telem.init(hal.serial(HAL_PERIPH_HWESC_SERIAL_PORT));
 #endif
 
+#ifdef HAL_PERIPH_ENABLE_JETIESC
+    jetiesc_telem.init();
+#endif
+
 #ifdef HAL_PERIPH_ENABLE_ESC_APD
     for (uint8_t i = 0; i < ESC_NUMBERS; i++) {
         const uint8_t port = g.esc_serial_port[i];

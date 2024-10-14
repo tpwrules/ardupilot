@@ -22,6 +22,7 @@
 #include "../AP_Bootloader/app_comms.h"
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include "hwing_esc.h"
+#include "jeti_esc.h"
 #include <AP_CANManager/AP_CAN.h>
 #include <AP_CANManager/AP_SLCANIface.h>
 #include <AP_Scripting/AP_Scripting.h>
@@ -315,6 +316,11 @@ public:
 #ifdef HAL_PERIPH_ENABLE_HWESC
     HWESC_Telem hwesc_telem;
     void hwesc_telem_update();
+#endif
+
+#ifdef HAL_PERIPH_ENABLE_JETIESC
+    JETIESC_Telem jetiesc_telem;
+    void jetiesc_telem_update();
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_EFI
