@@ -6,11 +6,13 @@
   This protocol only allows for one ESC per UART RX line, so using a
   CAN node per ESC works well.
  */
-
 #include "AP_Periph.h"
 #include "jeti_esc.h"
 #include <AP_HAL/utility/sparse-endian.h>
 #include <dronecan_msgs.h>
+#include <cstring>   // For strncpy()
+#include <cstdlib>   // For atoi(), atof()
+
 
 #ifdef HAL_PERIPH_ENABLE_JETIESC
 
@@ -70,10 +72,29 @@ bool JETIESC_Telem::update()
 void JETIESC_Telem::process_byte(uint8_t b)
 {
     // 1. process bytes into the pkt variable and form packets.
-    //    helpful to keep track of length
+    if (len == 0) {
+        // Header
+        if (b == 0xFE) {
+            pkt.header = b; // Store the header
+            len = 1; // Move to the next byte
+        }
+    } else if (len > 0 && len <= 32) {
+    // Message
+    pkt.message[len - 1] = b; // Fill the message array
+    len++;
+    } else if (len == 33) {
+        // Footer
+        if (b == 0xFF) {
+            pkt.footer = b; // Store the footer
+            len = 0;        // Reset the length to be ready for the next packet
+            // once ready to parse the packet:
+            packet_decoded = parse_packet();
+        } else {
+            // Footer mismatch, reset length (start over)
+            len = 0;
+        }
+    }
 
-    // once ready to parse the packet:
-    packet_decoded = parse_packet();
 }
 
 void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
@@ -128,9 +149,46 @@ bool JETIESC_Telem::parse_packet(void)
     //    everything looks good, return true, else return false.
     //    possibly using atoi/atof or sscanf? note that it's two lines and
     //    also not null terminated.
-    return false;
+    if (pkt.header != 0xFE || pkt.footer != 0xFF) {
+        return false;
+    }
+    // Parse Zone 1 ("Sppp%   RRRRRrpm")
+    
+    char power_pct_str[4];     // To hold the power percentage (3 characters + null terminator)
+    power_pct_str[3] = '\0';
+    memcpy(power_pct_str, &pkt.message[1], 3);
+    int power_pct = atoi(power_pct_str);
+    
+    char rpm_str[6];           // To hold the RPM (5 characters + null terminator)
+    rpm_str[5] = '\0';
+    memcpy(rpm_str, &pkt.message[8], 5);
+    int rpm = atoi(rpm_str);                      // Convert RPM to integer
 
-    // decoded.temp_degc = whatever;
+    // Parse Zone 2 ("vv,vvV    ttttdC")
+    // Copy the voltage part (formatted as "vv,vv") and the temperature part
+    char voltage_str[6];       // To hold voltage (formatted as "vv,vv" + null terminator)
+    voltage_str[5] = '\0';
+    memcpy(voltage_str, &pkt.message[16], 5);
+    
+    // Voltage is in the format "vv,vv", replace the comma and use atof()
+    voltage_str[2] = '.';                         // Replace the comma with a decimal point
+    float voltage = atof(voltage_str);            // Convert voltage to float
+
+    char temp_str[5];          // To hold temperature (4 characters + null terminator)
+    temp_str[4] = '\0';
+    memcpy(temp_str, &pkt.message[26], 4);
+    int temp_degc = atoi(temp_str);
+
+    // Populate the decoded structure
+    decoded.power_pct = static_cast<uint8_t>(power_pct);
+    decoded.rpm = static_cast<float>(rpm);
+    decoded.voltage = voltage;
+    decoded.temp_degc = static_cast<float>(temp_degc);
+
+    // You may want to handle the status letter separately if needed
+    // For example, check if the status indicates an error or special condition
+
+    return true;
 }
 
 void AP_Periph_FW::jetiesc_telem_update()
