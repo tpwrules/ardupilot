@@ -131,11 +131,56 @@ static AP_Param save_dummy;
   parameter file. It can be manipulated by apj_tool.py to change the
   defaults on a binary without recompiling
  */
+
+#define EMBEDDED_DEFAULTS \
+/* drone specific settings */ \
+"FRAME_CLASS 1\n" \
+"MOT_PWM_TYPE 3\n" \
+"LOG_BACKEND_TYPE 2\n" /* mavlink logging */ \
+"ARMING_CHECK 1047038\n" /* all except logging (if log rx not up) */ \
+"LOG_DISARMED 1\n" \
+/* mavlink RC control */ \
+"FS_THR_ENABLE 0\n" /* not wanted for mavlink control */ \
+"RC1_MIN 1101\n" /* avoid calibration needed warning */ \
+"RC_OPTIONS 96\n" /* ignore rpy stick positions during arming, nice for crap controllers */ \
+/* tuning parameters from mission planner's wizard */ \
+"ATC_ACCEL_P_MAX 200200\n" \
+"ATC_ACCEL_R_MAX 200200\n" \
+"ATC_ACCEL_Y_MAX 33800\n" \
+"ATC_RAT_PIT_FLTD 67\n" \
+"ATC_RAT_PIT_FLTT 67\n" \
+"ATC_RAT_RLL_FLTD 67\n" \
+"ATC_RAT_RLL_FLTT 67\n" \
+"ATC_RAT_YAW_FLTD 0\n" \
+"ATC_RAT_YAW_FLTE 2\n" \
+"ATC_RAT_YAW_FLTT 67\n" \
+"INS_GYRO_FILTER 134\n" \
+"MOT_THST_EXPO 0.45\n" \
+/* battery monitoring settings */ \
+"BATT_ARM_MAH    0\n" \
+"BATT_ARM_VOLT   0\n" \
+"BATT_CAPACITY   300\n" \
+"BATT_CHANNEL    2\n" \
+"BATT_CRT_MAH    0\n" \
+"BATT_CRT_VOLT   0\n" \
+"BATT_FS_CRT_ACT 0\n" \
+"BATT_FS_LOW_ACT 0\n" \
+"BATT_FS_VOLTSRC 0\n" \
+"BATT_I2C_ADDR   64\n" \
+"BATT_I2C_BUS    0\n" \
+"BATT_LOW_MAH    0\n" \
+"BATT_LOW_TIMER  10\n" \
+"BATT_LOW_VOLT   3.4\n" \
+"BATT_MONITOR    30\n" \
+"BATT_OPTIONS    0\n" \
+"BATT_SERIAL_NUM -1\n"
+
 const AP_Param::param_defaults_struct AP_Param::param_defaults_data = {
     "PARMDEF",
     { 0x55, 0x37, 0xf4, 0xa0, 0x38, 0x5d, 0x48, 0x5b },
     AP_PARAM_MAX_EMBEDDED_PARAM,
-    0
+    strlen(EMBEDDED_DEFAULTS),
+    EMBEDDED_DEFAULTS
 };
 #endif
 
