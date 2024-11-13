@@ -1337,6 +1337,9 @@ bool RCOutput::get_output_mode_banner(char banner_msg[], uint8_t banner_msg_len)
  */
 void RCOutput::cork(void)
 {
+    if (corked) {
+        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+    }
     corked = true;
 #if HAL_WITH_IO_MCU
     if (iomcu_enabled) {
@@ -1350,6 +1353,9 @@ void RCOutput::cork(void)
  */
 void RCOutput::push(void)
 {
+    if (!corked) {
+        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+    }
     corked = false;
     memcpy(period, period_corked, sizeof(period));
     push_local();
