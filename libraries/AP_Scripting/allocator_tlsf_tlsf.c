@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "tlsf.h"
+#include "allocator_tlsf_tlsf.h"
+
+#define _DEBUG 0
 
 #if defined(__cplusplus)
 #define tlsf_decl inline
@@ -411,7 +413,7 @@ static void block_set_prev_used(block_header_t* block)
 static block_header_t* block_from_ptr(const void* ptr)
 {
 	return tlsf_cast(block_header_t*,
-		tlsf_cast(unsigned char*, ptr) - block_start_offset);
+		tlsf_cast(void*, tlsf_cast(unsigned char*, ptr) - block_start_offset));
 }
 
 static void* block_to_ptr(const block_header_t* block)
