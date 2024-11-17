@@ -12,6 +12,10 @@ no locking, isolated from system heap for fragmentation etc purposes.
 
 #include "allocator_base.h"
 
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+#include <stdio.h>
+#endif
+
 #include "allocator_chibi_chmemheaps.h"
 
 class AP_Scripting_ChibiAllocator : AP_Scripting_Allocator
@@ -24,7 +28,11 @@ public:
     // returns true if succeeded.
     bool create(uint32_t capacity) {
         while (capacity) {
-            uint32_t amt = capacity > 32768 ? 32768 : capacity; // exercise
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            uint32_t amt = capacity > 512 ? 512 : capacity; // exercise
+#else
+            uint32_t amt = capacity;
+#endif
             while (amt > 0) {
                 if (add_arena(amt)) {
                     capacity -= amt;
@@ -62,12 +70,21 @@ public:
     void *allocate(uint32_t size) {
         sc_memory_heap_t **arena = heap;
         while (arena != nullptr) {
-            sc_memory_heap_t *sub = (sc_memory_heap_t *)((char*)arena + sizeof(sc_memory_heap_t*));
+            sc_memory_heap_t *sub = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
             void *p = scChHeapAlloc(sub, size);
             if (p != nullptr) {
                 return p;
             }
             arena = (sc_memory_heap_t **)*arena;
+        }
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        printf("OH OH! heaps are FULL!\n");
+#endif
+        if (add_arena(8*size)) {
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+            printf("but we saved it\n");
+#endif
+            return allocate(size);
         }
         return nullptr;
     }
@@ -92,7 +109,7 @@ private:
             return false;
         }
 
-        sc_memory_heap_t *sub = (sc_memory_heap_t *)((char*)arena + sizeof(sc_memory_heap_t*));
+        sc_memory_heap_t *sub = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
         scChHeapObjectInit(sub, sub + 1U, capacity);
 
         *arena = nullptr;
