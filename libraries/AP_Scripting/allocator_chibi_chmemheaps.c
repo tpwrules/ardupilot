@@ -99,7 +99,7 @@
  *
  * @init
  */
-void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size) {
+void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size, uint8_t index) {
   sc_heap_header_t *hp = (sc_heap_header_t *)SC_MEM_ALIGN_NEXT(buf, SC_CH_HEAP_ALIGNMENT);
 
   //chDbgCheck((heapp != NULL) && (size > 0U));

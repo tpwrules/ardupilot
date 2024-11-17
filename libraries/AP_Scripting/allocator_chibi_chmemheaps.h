@@ -154,7 +154,7 @@ struct sc_memory_heap {
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size);
+  void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size, uint8_t index);
   void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align);
   void scChHeapFree(void *p);
   size_t scChHeapStatus(sc_memory_heap_t *heapp, size_t *totalp, size_t *largestp);

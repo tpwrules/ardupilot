@@ -22,14 +22,14 @@ class AP_Scripting_ChibiAllocator : AP_Scripting_Allocator
 {
 public:
     static_assert(sizeof(void*) == sizeof(uintptr_t), "what");
-    AP_Scripting_ChibiAllocator() : heap(nullptr) {};
+    AP_Scripting_ChibiAllocator() : heap(nullptr), num_heaps(0) {};
 
     // create a heap with a given total nominal allocation capacity.
     // returns true if succeeded.
     bool create(uint32_t capacity) {
         while (capacity) {
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-            uint32_t amt = capacity > 512 ? 512 : capacity; // exercise
+            uint32_t amt = capacity > 4096 ? 4096 : capacity; // exercise
 #else
             uint32_t amt = capacity;
 #endif
@@ -58,6 +58,7 @@ public:
             arena = (sc_memory_heap_t**)next;
         }
         heap = nullptr;
+        num_heaps = 0;
     }
 
     // return true if the heap is allocated and available for operatons
@@ -103,6 +104,10 @@ public:
 
 private:
     bool add_arena(uint32_t capacity) {
+        if (num_heaps == 255) {
+            return false;
+        }
+
         sc_memory_heap_t **arena = (sc_memory_heap_t **)malloc(sizeof(sc_memory_heap_t*) +
             sizeof(sc_memory_heap_t) + capacity);
         if (arena == nullptr) {
@@ -110,7 +115,7 @@ private:
         }
 
         sc_memory_heap_t *subheap = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
-        scChHeapObjectInit(subheap, subheap + 1U, capacity);
+        scChHeapObjectInit(subheap, subheap + 1U, capacity, num_heaps++);
 
         *arena = nullptr;
         sc_memory_heap_t ***slot = &heap; // sorry
@@ -123,6 +128,8 @@ private:
     }
 
     sc_memory_heap_t **heap;
+
+    uint8_t num_heaps;
 };
 
 #endif // AP_SCRIPTING_ENABLED
