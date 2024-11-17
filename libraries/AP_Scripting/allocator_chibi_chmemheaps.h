@@ -83,8 +83,10 @@
 
 #if UINTPTR_MAX == 0xFFFFFFFF
   #define SC_CH_HEAP_ALIGNMENT 8U
+  #define SC_CH_SMALL_HEADER 0
 #elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
   #define SC_CH_HEAP_ALIGNMENT 16U
+  #define SC_CH_SMALL_HEADER 1
 #else
   #error what
 #endif
@@ -116,6 +118,16 @@ typedef union sc_heap_header sc_heap_header_t;
  * @brief   Memory heap block header.
  */
 union sc_heap_header {
+#if SC_CH_SMALL_HEADER
+  struct {
+    sc_heap_header_t       *next;      /**< @brief Next block in free list.    */
+    uint32_t              pages;      /**< @brief Size of the area in pages.  */
+  } free;
+  struct {
+    uint8_t heap;      /**< @brief Block owner heap.           */
+    uint32_t              size;       /**< @brief Size of the area in bytes.  */
+  } used;
+#else
   struct {
     sc_heap_header_t       *next;      /**< @brief Next block in free list.    */
     size_t              pages;      /**< @brief Size of the area in pages.  */
@@ -124,6 +136,7 @@ union sc_heap_header {
     sc_memory_heap_t       *heap;      /**< @brief Block owner heap.           */
     size_t              size;       /**< @brief Size of the area in bytes.  */
   } used;
+#endif
 };
 
 /**
@@ -134,6 +147,9 @@ struct sc_memory_heap {
   //                                              this heap.                  */
   sc_heap_header_t         header;     /**< @brief Free blocks list header.    */
  // semaphore_t           sem;        /**< @brief Heap access semaphore.      */
+#if SC_CH_SMALL_HEADER
+  uint8_t index;
+#endif
 };
 
 /*===========================================================================*/

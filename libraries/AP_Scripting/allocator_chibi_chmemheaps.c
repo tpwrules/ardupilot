@@ -54,8 +54,19 @@
 
 #define H_PAGES(hp)     ((hp)->free.pages)
 
+#if SC_CH_SMALL_HEADER
+
+static sc_memory_heap_t *all_heaps[256]; // indexed with uint8_t
+
+#define H_HEAP_GET(hp) (all_heaps[(hp)->used.heap])
+#define H_HEAP_SET(hp, heap_) do { (hp)->used.heap = (heap_)->index; } while (0)
+
+#else
+
 #define H_HEAP_GET(hp)  ((hp)->used.heap)
 #define H_HEAP_SET(hp, heap_) do { (hp)->used.heap = (heap_); } while (0)
+
+#endif
 
 #define H_SIZE(hp)      ((hp)->used.size)
 
@@ -121,6 +132,10 @@ void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size, uint8_t
 // #else
 //   chSemObjectInit(&heapp->sem, (cnt_t)1);
 // #endif
+#if SC_CH_SMALL_HEADER
+  heapp->index = index;
+  all_heaps[index] = heapp;
+#endif
 }
 
 /**
