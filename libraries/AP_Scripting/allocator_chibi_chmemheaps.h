@@ -81,7 +81,14 @@
 // #error "unsupported pointer size"
 // #endif
 
-#define SC_CH_HEAP_ALIGNMENT 16U
+#if UINTPTR_MAX == 0xFFFFFFFF
+  #define SC_CH_HEAP_ALIGNMENT 8U
+#elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
+  #define SC_CH_HEAP_ALIGNMENT 16U
+#else
+  #error what
+#endif
+
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */

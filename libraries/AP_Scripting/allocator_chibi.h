@@ -17,6 +17,7 @@ no locking, isolated from system heap for fragmentation etc purposes.
 class AP_Scripting_ChibiAllocator : AP_Scripting_Allocator
 {
 public:
+    static_assert(sizeof(void*) == sizeof(uintptr_t), "what");
     AP_Scripting_ChibiAllocator() : arena(nullptr) {};
 
     // create a heap with a given total nominal allocation capacity.
