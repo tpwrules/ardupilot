@@ -26,8 +26,8 @@
 #include <AP_Scripting/AP_Scripting.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_HAL/Semaphores.h>
-#include <AP_Common/MultiHeap.h>
 #include "lua_common_defs.h"
+#include "allocator.h"
 
 #include "lua/src/lua.hpp"
 
@@ -41,7 +41,7 @@ public:
     CLASS_NO_COPY(lua_scripts);
 
     // return true if initialisation failed
-    bool heap_allocated() const { return _heap.available(); }
+    bool heap_allocated() const { return _alloc.available(); }
 
     // run scripts, does not return unless an error occured
     void run(void);
@@ -100,7 +100,7 @@ private:
 
     static void *alloc(void *ud, void *ptr, size_t osize, size_t nsize);
 
-    static MultiHeap _heap;
+    static AP_Scripting_CurrentAllocator _alloc;
 
     // helper for print and log of runtime stats
     void update_stats(const char *name, uint32_t run_time, int total_mem, int run_mem);
