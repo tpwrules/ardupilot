@@ -18,35 +18,58 @@ class AP_Scripting_ChibiAllocator : AP_Scripting_Allocator
 {
 public:
     static_assert(sizeof(void*) == sizeof(uintptr_t), "what");
-    AP_Scripting_ChibiAllocator() : arena(nullptr) {};
+    AP_Scripting_ChibiAllocator() : heap(nullptr) {};
 
     // create a heap with a given total nominal allocation capacity.
     // returns true if succeeded.
     bool create(uint32_t capacity) {
-        arena = (sc_memory_heap_t *)malloc(capacity + sizeof(sc_memory_heap_t));
-        if (arena == nullptr) {
-            return false;
+        while (capacity) {
+            uint32_t amt = capacity > 32768 ? 32768 : capacity; // exercise
+            while (amt > 0) {
+                if (add_arena(amt)) {
+                    capacity -= amt;
+                    break;
+                }
+                amt *= 0.9;
+            }
+            if (capacity == 0)
+                return true;
+            if (capacity < 256)
+                return false;
         }
-        scChHeapObjectInit(arena, arena + 1U, capacity);
-        return true;
+        return false;
     }
 
     // destroy the heap. the heap does not need to be empty, though you best not
     // have a pointer into it!
     void destroy(void) {
-        free(arena);
-        arena = nullptr;
+        sc_memory_heap_t **arena = heap;
+        while (arena != nullptr) {
+            void *next = *arena;
+            free(arena);
+            arena = (sc_memory_heap_t**)next;
+        }
+        heap = nullptr;
     }
 
     // return true if the heap is allocated and available for operatons
     bool available(void) const {
-        return arena != nullptr;
+        return heap != nullptr;
     }
 
     // allocate a block of a particular size, aligned to void*. behavior with
     // size of 0 is unspecified.
     void *allocate(uint32_t size) {
-        return scChHeapAlloc(arena, size);
+        sc_memory_heap_t **arena = heap;
+        while (arena != nullptr) {
+            sc_memory_heap_t *sub = (sc_memory_heap_t *)((char*)arena + sizeof(sc_memory_heap_t*));
+            void *p = scChHeapAlloc(sub, size);
+            if (p != nullptr) {
+                return p;
+            }
+            arena = (sc_memory_heap_t **)*arena;
+        }
+        return nullptr;
     }
 
     // de-allocate a previously allocated block. nullptr is ok to deallocate.
@@ -62,7 +85,27 @@ public:
     void *change_size(void *ptr, uint32_t old_size, uint32_t new_size);
 
 private:
-    sc_memory_heap_t *arena;
+    bool add_arena(uint32_t capacity) {
+        sc_memory_heap_t **arena = (sc_memory_heap_t **)malloc(sizeof(sc_memory_heap_t*) +
+            sizeof(sc_memory_heap_t) + capacity);
+        if (arena == nullptr) {
+            return false;
+        }
+
+        sc_memory_heap_t *sub = (sc_memory_heap_t *)((char*)arena + sizeof(sc_memory_heap_t*));
+        scChHeapObjectInit(sub, sub + 1U, capacity);
+
+        *arena = nullptr;
+        sc_memory_heap_t ***slot = &heap; // sorry
+        while (*slot != nullptr) {
+            slot = (sc_memory_heap_t ***)*slot;
+        }
+        *slot = arena;
+
+        return true;
+    }
+
+    sc_memory_heap_t **heap;
 };
 
 #endif // AP_SCRIPTING_ENABLED
