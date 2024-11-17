@@ -48,9 +48,35 @@
 
 #define H_LIMIT(hp)     (H_BLOCK(hp) + H_PAGES(hp))
 
+#if SC_CH_SMALL_HEADER
+
+static inline sc_heap_header_t *h_next_get(sc_heap_header_t *hp) {
+  if (hp->free.next == 0) {
+    return NULL;
+  }
+
+  return (sc_heap_header_t *)(void*)((uint8_t*)hp + hp->free.next);
+}
+
+static inline void h_next_set(sc_heap_header_t *hp, sc_heap_header_t *next) {
+  if (next == NULL) {
+    hp->free.next = 0;
+  } else {
+    hp->free.next = (uint32_t)((uint8_t*)(next) - (uint8_t*)(hp));
+  }
+}
+
+#define H_NEXT_GET(hp) h_next_get((hp))
+#define H_NEXT_SET(hp, next) h_next_set((hp), (next))
+#define H_NEXT_EXISTS(hp)   ((hp)->free.next != 0)
+
+#else
+
 #define H_NEXT_GET(hp)  ((hp)->free.next)
 #define H_NEXT_SET(hp, next_) do { (hp)->free.next = (next_); } while (0)
 #define H_NEXT_EXISTS(hp)   ((hp)->free.next != NULL)
+
+#endif
 
 #define H_PAGES(hp)     ((hp)->free.pages)
 

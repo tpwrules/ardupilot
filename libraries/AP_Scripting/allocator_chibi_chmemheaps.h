@@ -85,7 +85,7 @@
   #define SC_CH_HEAP_ALIGNMENT 8U
   #define SC_CH_SMALL_HEADER 0
 #elif UINTPTR_MAX == 0xFFFFFFFFFFFFFFFFu
-  #define SC_CH_HEAP_ALIGNMENT 16U
+  #define SC_CH_HEAP_ALIGNMENT 8U // must be 16 if not small header!
   #define SC_CH_SMALL_HEADER 1
 #else
   #error what
@@ -120,7 +120,7 @@ typedef union sc_heap_header sc_heap_header_t;
 union sc_heap_header {
 #if SC_CH_SMALL_HEADER
   struct {
-    sc_heap_header_t       *next;      /**< @brief Next block in free list.    */
+    uint32_t next;      /**< @brief Next block in free list.    */
     uint32_t              pages;      /**< @brief Size of the area in pages.  */
   } free;
   struct {
@@ -137,6 +137,9 @@ union sc_heap_header {
     size_t              size;       /**< @brief Size of the area in bytes.  */
   } used;
 #endif
+  struct {
+    void* alignme; // avoids whining about alignment casting
+  } alignme;
 };
 
 /**
