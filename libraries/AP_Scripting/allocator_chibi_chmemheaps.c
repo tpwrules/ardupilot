@@ -35,24 +35,14 @@
  * @{
  */
 
-#include "ch.h"
-
-#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
+#include "allocator_chibi_chmemheaps.h"
 
 /*===========================================================================*/
 /* Module local definitions.                                                 */
 /*===========================================================================*/
 
-/*
- * Defaults on the best synchronization mechanism available.
- */
-#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-#define H_LOCK(h)       chMtxLock(&(h)->mtx)
-#define H_UNLOCK(h)     chMtxUnlock(&(h)->mtx)
-#else
-#define H_LOCK(h)       (void) chSemWait(&(h)->sem)
-#define H_UNLOCK(h)     chSemSignal(&(h)->sem)
-#endif
+#define H_LOCK(h)       //(void) chSemWait(&(h)->sem)
+#define H_UNLOCK(h)     //chSemSignal(&(h)->sem)
 
 #define H_BLOCK(hp)     ((hp) + 1U)
 
@@ -86,11 +76,6 @@
 /* Module local variables.                                                   */
 /*===========================================================================*/
 
-/**
- * @brief   Default heap descriptor.
- */
-static memory_heap_t default_heap;
-
 /*===========================================================================*/
 /* Module local functions.                                                   */
 /*===========================================================================*/
@@ -100,26 +85,9 @@ static memory_heap_t default_heap;
 /*===========================================================================*/
 
 /**
- * @brief   Initializes the default heap.
- *
- * @notapi
- */
-void __heap_init(void) {
-
-  default_heap.provider = chCoreAllocAlignedWithOffset;
-  H_NEXT(&default_heap.header) = NULL;
-  H_PAGES(&default_heap.header) = 0;
-#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-  chMtxObjectInit(&default_heap.mtx);
-#else
-  chSemObjectInit(&default_heap.sem, (cnt_t)1);
-#endif
-}
-
-/**
  * @brief   Initializes a memory heap from a static memory area.
  * @note    The heap buffer base and size are adjusted if the passed buffer
- *          is not aligned to @p CH_HEAP_ALIGNMENT. This mean that the
+ *          is not aligned to @p SC_CH_HEAP_ALIGNMENT. This mean that the
  *          effective heap size can be less than @p size.
  *
  * @param[out] heapp    pointer to the memory heap descriptor to be initialized
@@ -128,10 +96,10 @@ void __heap_init(void) {
  *
  * @init
  */
-void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size) {
-  heap_header_t *hp = (heap_header_t *)MEM_ALIGN_NEXT(buf, CH_HEAP_ALIGNMENT);
+void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size) {
+  sc_heap_header_t *hp = (sc_heap_header_t *)SC_MEM_ALIGN_NEXT(buf, SC_CH_HEAP_ALIGNMENT);
 
-  chDbgCheck((heapp != NULL) && (size > 0U));
+  //chDbgCheck((heapp != NULL) && (size > 0U));
 
   /* Adjusting the size in case the initial block was not correctly
      aligned.*/
@@ -140,16 +108,16 @@ void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size) {
   /*lint restore*/
 
   /* Initializing the heap header.*/
-  heapp->provider = NULL;
+  //heapp->provider = NULL;
   H_NEXT(&heapp->header) = hp;
   H_PAGES(&heapp->header) = 0;
   H_NEXT(hp) = NULL;
-  H_PAGES(hp) = (size - sizeof (heap_header_t)) / CH_HEAP_ALIGNMENT;
-#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-  chMtxObjectInit(&heapp->mtx);
-#else
-  chSemObjectInit(&heapp->sem, (cnt_t)1);
-#endif
+  H_PAGES(hp) = (size - sizeof (sc_heap_header_t)) / SC_CH_HEAP_ALIGNMENT;
+// #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
+//   chMtxObjectInit(&heapp->mtx);
+// #else
+//   chSemObjectInit(&heapp->sem, (cnt_t)1);
+// #endif
 }
 
 /**
@@ -169,24 +137,24 @@ void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size) {
  *
  * @api
  */
-void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
-  heap_header_t *qp, *hp, *ahp;
+void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align) {
+  sc_heap_header_t *qp, *hp, *ahp;
   size_t pages;
 
-  chDbgCheck((size > 0U) && MEM_IS_VALID_ALIGNMENT(align));
+  //chDbgCheck((size > 0U) && MEM_IS_VALID_ALIGNMENT(align));
 
-  /* If an heap is not specified then the default system header is used.*/
-  if (heapp == NULL) {
-    heapp = &default_heap;
-  }
+  // /* If an heap is not specified then the default system header is used.*/
+  // if (heapp == NULL) {
+  //   heapp = &default_heap;
+  // }
 
   /* Minimum alignment is constrained by the heap header structure size.*/
-  if (align < CH_HEAP_ALIGNMENT) {
-    align = CH_HEAP_ALIGNMENT;
+  if (align < SC_CH_HEAP_ALIGNMENT) {
+    align = SC_CH_HEAP_ALIGNMENT;
   }
 
   /* Size is converted in number of elementary allocation units.*/
-  pages = MEM_ALIGN_NEXT(size, CH_HEAP_ALIGNMENT) / CH_HEAP_ALIGNMENT;
+  pages = SC_MEM_ALIGN_NEXT(size, SC_CH_HEAP_ALIGNMENT) / SC_CH_HEAP_ALIGNMENT;
 
   /* Taking heap mutex/semaphore.*/
   H_LOCK(heapp);
@@ -199,7 +167,7 @@ void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
     hp = H_NEXT(qp);
 
     /* Pointer aligned to the requested alignment.*/
-    ahp = (heap_header_t *)MEM_ALIGN_NEXT(H_BLOCK(hp), align) - 1U;
+    ahp = (sc_heap_header_t *)SC_MEM_ALIGN_NEXT(H_BLOCK(hp), align) - 1U;
 
     if ((ahp < H_LIMIT(hp)) && (pages <= NPAGES(H_LIMIT(hp), ahp + 1U))) {
       /* The block is large enough to contain a correctly aligned area
@@ -213,7 +181,7 @@ void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
         H_PAGES(hp) = NPAGES(ahp, H_BLOCK(hp));
         if (bpages > pages) {
           /* The block is bigger than required, must split the excess.*/
-          heap_header_t *fp;
+          sc_heap_header_t *fp;
 
           /* Creating the excess block.*/
           fp = H_BLOCK(ahp) + pages;
@@ -235,7 +203,7 @@ void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
         }
         else {
           /* The block is bigger than required, must split the excess.*/
-          heap_header_t *fp;
+          sc_heap_header_t *fp;
 
           fp = H_BLOCK(hp) + pages;
           H_NEXT(fp) = H_NEXT(hp);
@@ -265,20 +233,20 @@ void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
 
   /* More memory is required, tries to get it from the associated provider
      else fails.*/
-  if (heapp->provider != NULL) {
-    ahp = heapp->provider(pages * CH_HEAP_ALIGNMENT,
-                          align,
-                          sizeof (heap_header_t));
-    if (ahp != NULL) {
-      hp = ahp - 1U;
-      H_HEAP(hp) = heapp;
-      H_SIZE(hp) = size;
+  // if (heapp->provider != NULL) {
+  //   ahp = heapp->provider(pages * SC_CH_HEAP_ALIGNMENT,
+  //                         align,
+  //                         sizeof (sc_heap_header_t));
+  //   if (ahp != NULL) {
+  //     hp = ahp - 1U;
+  //     H_HEAP(hp) = heapp;
+  //     H_SIZE(hp) = size;
 
-      /*lint -save -e9087 [11.3] Safe cast.*/
-      return (void *)ahp;
-      /*lint -restore*/
-    }
-  }
+  //     /*lint -save -e9087 [11.3] Safe cast.*/
+  //     return (void *)ahp;
+  //     /*lint -restore*/
+  //   }
+  // }
 
   return NULL;
 }
@@ -290,27 +258,27 @@ void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align) {
  *
  * @api
  */
-void chHeapFree(void *p) {
-  heap_header_t *qp, *hp;
-  memory_heap_t *heapp;
+void scChHeapFree(void *p) {
+  sc_heap_header_t *qp, *hp;
+  sc_memory_heap_t *heapp;
 
-  chDbgCheck((p != NULL) && MEM_IS_ALIGNED(p, CH_HEAP_ALIGNMENT));
+  //chDbgCheck((p != NULL) && MEM_IS_ALIGNED(p, SC_CH_HEAP_ALIGNMENT));
 
   /*lint -save -e9087 [11.3] Safe cast.*/
-  hp = (heap_header_t *)p - 1U;
+  hp = (sc_heap_header_t *)p - 1U;
   /*lint -restore*/
   heapp = H_HEAP(hp);
   qp = &heapp->header;
 
   /* Size is converted in number of elementary allocation units.*/
-  H_PAGES(hp) = MEM_ALIGN_NEXT(H_SIZE(hp),
-                               CH_HEAP_ALIGNMENT) / CH_HEAP_ALIGNMENT;
+  H_PAGES(hp) = SC_MEM_ALIGN_NEXT(H_SIZE(hp),
+                               SC_CH_HEAP_ALIGNMENT) / SC_CH_HEAP_ALIGNMENT;
 
   /* Taking heap mutex/semaphore.*/
   H_LOCK(heapp);
 
   while (true) {
-    chDbgAssert((hp < qp) || (hp >= H_LIMIT(qp)), "within free block");
+    //chDbgAssert((hp < qp) || (hp >= H_LIMIT(qp)), "within free block");
 
     if (((qp == &heapp->header) || (hp > qp)) &&
         ((H_NEXT(qp) == NULL) || (hp < H_NEXT(qp)))) {
@@ -354,13 +322,9 @@ void chHeapFree(void *p) {
  *
  * @api
  */
-size_t chHeapStatus(memory_heap_t *heapp, size_t *totalp, size_t *largestp) {
-  heap_header_t *qp;
+size_t scChHeapStatus(sc_memory_heap_t *heapp, size_t *totalp, size_t *largestp) {
+  sc_heap_header_t *qp;
   size_t n, tpages, lpages;
-
-  if (heapp == NULL) {
-    heapp = &default_heap;
-  }
 
   H_LOCK(heapp);
   tpages = 0U;
@@ -382,18 +346,16 @@ size_t chHeapStatus(memory_heap_t *heapp, size_t *totalp, size_t *largestp) {
 
   /* Writing out fragmented free memory.*/
   if (totalp != NULL) {
-    *totalp = tpages * CH_HEAP_ALIGNMENT;
+    *totalp = tpages * SC_CH_HEAP_ALIGNMENT;
   }
 
   /* Writing out unfragmented free memory.*/
   if (largestp != NULL) {
-    *largestp = lpages * CH_HEAP_ALIGNMENT;
+    *largestp = lpages * SC_CH_HEAP_ALIGNMENT;
   }
   H_UNLOCK(heapp);
 
   return n;
 }
-
-#endif /* CH_CFG_USE_HEAP == TRUE */
 
 /** @} */

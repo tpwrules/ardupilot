@@ -25,10 +25,45 @@
  * @{
  */
 
-#ifndef CHMEMHEAPS_H
-#define CHMEMHEAPS_H
+#ifndef AP_SCRIPTING_CHMEMHEAPS_H
+#define AP_SCRIPTING_CHMEMHEAPS_H
 
-#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+/**
+ * @name    Memory alignment support macros
+ * @{
+ */
+/**
+ * @brief   Alignment mask constant.
+ *
+ * @param[in] a         alignment, must be a power of two
+ */
+#define SC_MEM_ALIGN_MASK(a)       ((size_t)(a) - 1U)
+
+/**
+ * @brief   Aligns to the previous aligned memory address.
+ *
+ * @param[in] p         variable to be aligned
+ * @param[in] a         alignment, must be a power of two
+ */
+#define SC_MEM_ALIGN_PREV(p, a)                                                \
+  /*lint -save -e9033 [10.8] The cast is safe.*/                            \
+  ((size_t)(p) & ~SC_MEM_ALIGN_MASK(a))                                        \
+  /*lint -restore*/
+
+/**
+ * @brief   Aligns to the next aligned memory address.
+ *
+ * @param[in] p         variable to be aligned
+ * @param[in] a         alignment, must be a power of two
+ */
+#define SC_MEM_ALIGN_NEXT(p, a)                                                \
+  /*lint -save -e9033 [10.8] The cast is safe.*/                            \
+  SC_MEM_ALIGN_PREV((size_t)(p) + SC_MEM_ALIGN_MASK(a), (a))                      \
+  /*lint -restore*/
 
 /*===========================================================================*/
 /* Module constants.                                                         */
@@ -38,13 +73,15 @@
  * @brief   Minimum alignment used for heap.
  * @note    Cannot use the sizeof operator in this macro.
  */
-#if (SIZEOF_PTR == 4) || defined(__DOXYGEN__)
-#define CH_HEAP_ALIGNMENT   8U
-#elif (SIZEOF_PTR == 2)
-#define CH_HEAP_ALIGNMENT   4U
-#else
-#error "unsupported pointer size"
-#endif
+// #if (SIZEOF_PTR == 4) || defined(__DOXYGEN__)
+// #define SC_CH_HEAP_ALIGNMENT   8U
+// #elif (SIZEOF_PTR == 2)
+// #define SC_CH_HEAP_ALIGNMENT   4U
+// #else
+// #error "unsupported pointer size"
+// #endif
+
+#define SC_CH_HEAP_ALIGNMENT 16U
 
 /*===========================================================================*/
 /* Module pre-compile time settings.                                         */
@@ -54,14 +91,6 @@
 /* Derived constants and error checks.                                       */
 /*===========================================================================*/
 
-#if CH_CFG_USE_MEMCORE == FALSE
-#error "CH_CFG_USE_HEAP requires CH_CFG_USE_MEMCORE"
-#endif
-
-#if (CH_CFG_USE_MUTEXES == FALSE) && (CH_CFG_USE_SEMAPHORES == FALSE)
-#error "CH_CFG_USE_HEAP requires CH_CFG_USE_MUTEXES and/or CH_CFG_USE_SEMAPHORES"
-#endif
-
 /*===========================================================================*/
 /* Module data structures and types.                                         */
 /*===========================================================================*/
@@ -69,23 +98,23 @@
 /**
  * @brief   Type of a memory heap.
  */
-typedef struct memory_heap memory_heap_t;
+typedef struct sc_memory_heap sc_memory_heap_t;
 
 /**
  * @brief   Type of a memory heap header.
  */
-typedef union heap_header heap_header_t;
+typedef union sc_heap_header sc_heap_header_t;
 
 /**
  * @brief   Memory heap block header.
  */
-union heap_header {
+union sc_heap_header {
   struct {
-    heap_header_t       *next;      /**< @brief Next block in free list.    */
+    sc_heap_header_t       *next;      /**< @brief Next block in free list.    */
     size_t              pages;      /**< @brief Size of the area in pages.  */
   } free;
   struct {
-    memory_heap_t       *heap;      /**< @brief Block owner heap.           */
+    sc_memory_heap_t       *heap;      /**< @brief Block owner heap.           */
     size_t              size;       /**< @brief Size of the area in bytes.  */
   } used;
 };
@@ -93,15 +122,11 @@ union heap_header {
 /**
  * @brief   Structure describing a memory heap.
  */
-struct memory_heap {
-  memgetfunc2_t         provider;   /**< @brief Memory blocks provider for
-                                                this heap.                  */
-  heap_header_t         header;     /**< @brief Free blocks list header.    */
-#if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
-  mutex_t               mtx;        /**< @brief Heap access mutex.          */
-#else
-  semaphore_t           sem;        /**< @brief Heap access semaphore.      */
-#endif
+struct sc_memory_heap {
+ // memgetfunc2_t         provider;   /**< @brief Memory blocks provider for
+  //                                              this heap.                  */
+  sc_heap_header_t         header;     /**< @brief Free blocks list header.    */
+ // semaphore_t           sem;        /**< @brief Heap access semaphore.      */
 };
 
 /*===========================================================================*/
@@ -111,9 +136,9 @@ struct memory_heap {
 /**
  * @brief   Allocation of an aligned static heap buffer.
  */
-#define CH_HEAP_AREA(name, size)                                            \
-  ALIGNED_VAR(CH_HEAP_ALIGNMENT)                                            \
-  uint8_t name[MEM_ALIGN_NEXT((size), CH_HEAP_ALIGNMENT)]
+#define SC_CH_HEAP_AREA(name, size)                                            \
+  ALIGNED_VAR(SC_CH_HEAP_ALIGNMENT)                                            \
+  uint8_t name[SC_MEM_ALIGN_NEXT((size), SC_CH_HEAP_ALIGNMENT)]
 
 /*===========================================================================*/
 /* External declarations.                                                    */
@@ -122,11 +147,10 @@ struct memory_heap {
 #ifdef __cplusplus
 extern "C" {
 #endif
-  void __heap_init(void);
-  void chHeapObjectInit(memory_heap_t *heapp, void *buf, size_t size);
-  void *chHeapAllocAligned(memory_heap_t *heapp, size_t size, unsigned align);
-  void chHeapFree(void *p);
-  size_t chHeapStatus(memory_heap_t *heapp, size_t *totalp, size_t *largestp);
+  void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size);
+  void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align);
+  void scChHeapFree(void *p);
+  size_t scChHeapStatus(sc_memory_heap_t *heapp, size_t *totalp, size_t *largestp);
 #ifdef __cplusplus
 }
 #endif
@@ -151,28 +175,26 @@ extern "C" {
  *
  * @api
  */
-static inline void *chHeapAlloc(memory_heap_t *heapp, size_t size) {
+static inline void *scChHeapAlloc(sc_memory_heap_t *heapp, size_t size) {
 
-  return chHeapAllocAligned(heapp, size, CH_HEAP_ALIGNMENT);
+  return scChHeapAllocAligned(heapp, size, SC_CH_HEAP_ALIGNMENT);
 }
 
 /**
  * @brief   Returns the size of an allocated block.
  * @note    The returned value is the requested size, the real size is the
- *          same value aligned to the next @p CH_HEAP_ALIGNMENT multiple.
+ *          same value aligned to the next @p SC_CH_HEAP_ALIGNMENT multiple.
  *
  * @param[in] p         pointer to the memory block
  * @return              Size of the block.
  *
  * @api
  */
-static inline size_t chHeapGetSize(const void *p) {
+static inline size_t scChHeapGetSize(const void *p) {
 
-  return ((heap_header_t *)p - 1U)->used.size;
+  return ((sc_heap_header_t *)p - 1U)->used.size;
 }
 
-#endif /* CH_CFG_USE_HEAP == TRUE */
-
-#endif /* CHMEMHEAPS_H */
+#endif /* AP_SCRIPTING_CHMEMHEAPS_H */
 
 /** @} */
