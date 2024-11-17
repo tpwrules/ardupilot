@@ -70,8 +70,8 @@ public:
     void *allocate(uint32_t size) {
         sc_memory_heap_t **arena = heap;
         while (arena != nullptr) {
-            sc_memory_heap_t *sub = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
-            void *p = scChHeapAlloc(sub, size);
+            sc_memory_heap_t *subheap = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
+            void *p = scChHeapAlloc(subheap, size);
             if (p != nullptr) {
                 return p;
             }
@@ -109,8 +109,8 @@ private:
             return false;
         }
 
-        sc_memory_heap_t *sub = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
-        scChHeapObjectInit(sub, sub + 1U, capacity);
+        sc_memory_heap_t *subheap = (sc_memory_heap_t *)(void*)((char*)arena + sizeof(sc_memory_heap_t*));
+        scChHeapObjectInit(subheap, subheap + 1U, capacity);
 
         *arena = nullptr;
         sc_memory_heap_t ***slot = &heap; // sorry
