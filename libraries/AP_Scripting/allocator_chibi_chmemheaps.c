@@ -48,11 +48,14 @@
 
 #define H_LIMIT(hp)     (H_BLOCK(hp) + H_PAGES(hp))
 
-#define H_NEXT(hp)      ((hp)->free.next)
+#define H_NEXT_GET(hp)  ((hp)->free.next)
+#define H_NEXT_SET(hp, next_) do { (hp)->free.next = (next_); } while (0)
+#define H_NEXT_EXISTS(hp)   ((hp)->free.next != NULL)
 
 #define H_PAGES(hp)     ((hp)->free.pages)
 
-#define H_HEAP(hp)      ((hp)->used.heap)
+#define H_HEAP_GET(hp)  ((hp)->used.heap)
+#define H_HEAP_SET(hp, heap_) do { (hp)->used.heap = (heap_); } while (0)
 
 #define H_SIZE(hp)      ((hp)->used.size)
 
@@ -109,9 +112,9 @@ void scChHeapObjectInit(sc_memory_heap_t *heapp, void *buf, size_t size) {
 
   /* Initializing the heap header.*/
   //heapp->provider = NULL;
-  H_NEXT(&heapp->header) = hp;
+  H_NEXT_SET(&heapp->header, hp);
   H_PAGES(&heapp->header) = 0;
-  H_NEXT(hp) = NULL;
+  H_NEXT_SET(hp, NULL);
   H_PAGES(hp) = (size - sizeof (sc_heap_header_t)) / SC_CH_HEAP_ALIGNMENT;
 // #if (CH_CFG_USE_MUTEXES == TRUE) || defined(__DOXYGEN__)
 //   chMtxObjectInit(&heapp->mtx);
@@ -161,10 +164,10 @@ void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align)
 
   /* Start of the free blocks list.*/
   qp = &heapp->header;
-  while (H_NEXT(qp) != NULL) {
+  while (H_NEXT_EXISTS(qp)) {
 
     /* Next free block.*/
-    hp = H_NEXT(qp);
+    hp = H_NEXT_GET(qp);
 
     /* Pointer aligned to the requested alignment.*/
     ahp = (sc_heap_header_t *)SC_MEM_ALIGN_NEXT(H_BLOCK(hp), align) - 1U;
@@ -188,8 +191,8 @@ void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align)
           H_PAGES(fp) = (bpages - pages) - 1U;
 
           /* Linking the excess block.*/
-          H_NEXT(fp) = H_NEXT(hp);
-          H_NEXT(hp) = fp;
+          H_NEXT_SET(fp, H_NEXT_GET(hp));
+          H_NEXT_SET(hp, fp);
         }
 
         hp = ahp;
@@ -199,22 +202,22 @@ void *scChHeapAllocAligned(sc_memory_heap_t *heapp, size_t size, unsigned align)
 
         if (H_PAGES(hp) == pages) {
           /* Exact size, getting the whole block.*/
-          H_NEXT(qp) = H_NEXT(hp);
+          H_NEXT_SET(qp, H_NEXT_GET(hp));
         }
         else {
           /* The block is bigger than required, must split the excess.*/
           sc_heap_header_t *fp;
 
           fp = H_BLOCK(hp) + pages;
-          H_NEXT(fp) = H_NEXT(hp);
+          H_NEXT_SET(fp, H_NEXT_GET(hp));
           H_PAGES(fp) = NPAGES(H_LIMIT(hp), H_BLOCK(fp));
-          H_NEXT(qp) = fp;
+          H_NEXT_SET(qp, fp);
         }
       }
 
       /* Setting in the block owner heap and size.*/
       H_SIZE(hp) = size;
-      H_HEAP(hp) = heapp;
+      H_HEAP_SET(hp, heapp);
 
       /* Releasing heap mutex/semaphore.*/
       H_UNLOCK(heapp);
@@ -267,7 +270,7 @@ void scChHeapFree(void *p) {
   /*lint -save -e9087 [11.3] Safe cast.*/
   hp = (sc_heap_header_t *)p - 1U;
   /*lint -restore*/
-  heapp = H_HEAP(hp);
+  heapp = H_HEAP_GET(hp);
   qp = &heapp->header;
 
   /* Size is converted in number of elementary allocation units.*/
@@ -281,24 +284,24 @@ void scChHeapFree(void *p) {
     //chDbgAssert((hp < qp) || (hp >= H_LIMIT(qp)), "within free block");
 
     if (((qp == &heapp->header) || (hp > qp)) &&
-        ((H_NEXT(qp) == NULL) || (hp < H_NEXT(qp)))) {
+        ((!H_NEXT_EXISTS(qp)) || (hp < H_NEXT_GET(qp)))) {
       /* Insertion after qp.*/
-      H_NEXT(hp) = H_NEXT(qp);
-      H_NEXT(qp) = hp;
+      H_NEXT_SET(hp, H_NEXT_GET(qp));
+      H_NEXT_SET(qp, hp);
       /* Verifies if the newly inserted block should be merged.*/
-      if (H_LIMIT(hp) == H_NEXT(hp)) {
+      if (H_LIMIT(hp) == H_NEXT_GET(hp)) {
         /* Merge with the next block.*/
-        H_PAGES(hp) += H_PAGES(H_NEXT(hp)) + 1U;
-        H_NEXT(hp) = H_NEXT(H_NEXT(hp));
+        H_PAGES(hp) += H_PAGES(H_NEXT_GET(hp)) + 1U;
+        H_NEXT_SET(hp, H_NEXT_GET(H_NEXT_GET(hp)));
       }
       if ((H_LIMIT(qp) == hp)) {
         /* Merge with the previous block.*/
         H_PAGES(qp) += H_PAGES(hp) + 1U;
-        H_NEXT(qp) = H_NEXT(hp);
+        H_NEXT_SET(qp, H_NEXT_GET(hp));
       }
       break;
     }
-    qp = H_NEXT(qp);
+    qp = H_NEXT_GET(qp);
   }
 
   /* Releasing heap mutex/semaphore.*/
@@ -331,8 +334,8 @@ size_t scChHeapStatus(sc_memory_heap_t *heapp, size_t *totalp, size_t *largestp)
   lpages = 0U;
   n = 0U;
   qp = &heapp->header;
-  while (H_NEXT(qp) != NULL) {
-    size_t pages = H_PAGES(H_NEXT(qp));
+  while (H_NEXT_EXISTS(qp)) {
+    size_t pages = H_PAGES(H_NEXT_GET(qp));
 
     /* Updating counters.*/
     n++;
@@ -341,7 +344,7 @@ size_t scChHeapStatus(sc_memory_heap_t *heapp, size_t *totalp, size_t *largestp)
       lpages = pages;
     }
 
-    qp = H_NEXT(qp);
+    qp = H_NEXT_GET(qp);
   }
 
   /* Writing out fragmented free memory.*/
