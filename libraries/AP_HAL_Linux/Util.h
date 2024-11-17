@@ -71,12 +71,6 @@ public:
     bool get_system_id(char buf[50]) override;
     bool get_system_id_unformatted(uint8_t buf[], uint8_t &len) override;
 
-#if ENABLE_HEAP
-    // heap functions, note that a heap once alloc'd cannot be dealloc'd
-    virtual void *allocate_heap_memory(size_t size) override;
-    virtual void *heap_realloc(void *h, void *ptr, size_t old_size, size_t new_size) override;
-#endif // ENABLE_HEAP
-    
     /*
      * Write a string as specified by @fmt to the file in @path. Note this
      * should not be used on hot path since it will open, write and close the

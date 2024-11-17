@@ -43,12 +43,6 @@ public:
     bool get_system_id_unformatted(uint8_t buf[], uint8_t &len) override;
     void dump_stack_trace();
 
-#if ENABLE_HEAP
-    // heap functions, note that a heap once alloc'd cannot be dealloc'd
-    void *allocate_heap_memory(size_t size) override;
-    void *heap_realloc(void *heap, void *ptr, size_t old_size, size_t new_size) override;
-#endif // ENABLE_HEAP
-
 #ifdef WITH_SITL_TONEALARM
     bool toneAlarm_init(uint8_t types) override { return _toneAlarm.init(); }
     void toneAlarm_set_buzzer_tone(float frequency, float volume, uint32_t duration_ms) override {

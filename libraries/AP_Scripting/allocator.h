@@ -4,7 +4,6 @@
 
 #if AP_SCRIPTING_ENABLED
 
-#include "allocator_multiheap.h"
 #include "allocator_system.h"
 #include "allocator_chibi.h"
 
