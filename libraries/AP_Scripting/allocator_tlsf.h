@@ -26,7 +26,7 @@ public:
     // create a heap with a given total nominal allocation capacity.
     // returns true if succeeded.
     bool create(uint32_t capacity) {
-        size_t control_size = tlsf_size();
+        size_t control_size = sc_tlsf_size();
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
         printf("control size is %lu\n", control_size);
@@ -41,7 +41,7 @@ public:
         if (p == nullptr) {
             return false;
         }
-        heap = tlsf_create(p);
+        heap = sc_tlsf_create(p);
 
         while (capacity) {
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -67,7 +67,7 @@ public:
     // destroy the heap. the heap does not need to be empty, though you best not
     // have a pointer into it!
     void destroy(void) {
-        // tlsf_destroy(heap); // actually a no-op
+        // sc_tlsf_destroy(heap); // actually a no-op
         free(heap);
         heap = nullptr;
 
@@ -89,7 +89,7 @@ public:
     // size of 0 is unspecified.
     void *allocate(uint32_t size) {
         // automatically chooses a pool
-        void *p = tlsf_malloc(heap, size);
+        void *p = sc_tlsf_malloc(heap, size);
         if (p != nullptr) {
             return p;
         }
@@ -108,7 +108,7 @@ public:
 
     // de-allocate a previously allocated block. nullptr is ok to deallocate.
     void deallocate(void *ptr) {
-        tlsf_free(heap, ptr); // can handle nullptr
+        sc_tlsf_free(heap, ptr); // can handle nullptr
     }
 
     // change allocated size of a pointer - this requires the old size, unlike
@@ -117,10 +117,10 @@ public:
     void *change_size(void *ptr, uint32_t old_size, uint32_t new_size) {
         (void)old_size;
         // behaves exactly like Lua needs, can't fail to shrink
-        void *new_ptr = tlsf_realloc(heap, ptr, new_size);
+        void *new_ptr = sc_tlsf_realloc(heap, ptr, new_size);
         if (new_size && new_ptr == nullptr) {
             if (add_pool(8*new_size)) {
-                return tlsf_realloc(heap, ptr, new_size);
+                return sc_tlsf_realloc(heap, ptr, new_size);
             }
             return nullptr;
         }
@@ -134,7 +134,7 @@ private:
             return false;
         }
 
-        tlsf_add_pool(heap, pool + 1U, capacity);
+        sc_tlsf_add_pool(heap, pool + 1U, capacity);
 
         *pool = pools; // add to pool list head
         pools = pool;
@@ -142,7 +142,7 @@ private:
         return true;
     }
 
-    tlsf_t heap;
+    sc_tlsf_t heap;
     void** pools;
 };
 
