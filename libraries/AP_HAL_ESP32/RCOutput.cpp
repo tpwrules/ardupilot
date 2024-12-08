@@ -319,7 +319,7 @@ void RCOutput::force_safety_off(void)
 */
 void RCOutput::set_safety_pwm(uint32_t chmask, uint16_t period_us)
 {
-    for (uint8_t i=0; i<16; i++) {
+    for (uint8_t i=0; i<ARRAY_SIZE(safe_pwm); i++) {
         if (chmask & (1U<<i)) {
             safe_pwm[i] = period_us;
         }
