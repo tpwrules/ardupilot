@@ -136,6 +136,7 @@ static AP_Param save_dummy;
 /* drone specific settings */ \
 "FRAME_CLASS 1\n" \
 "MOT_PWM_TYPE 3\n" \
+"RC_SPEED 32000\n" \
 "LOG_BACKEND_TYPE 2\n" /* mavlink logging */ \
 "ARMING_CHECK 1047038\n" /* all except logging (if log rx not up) */ \
 "LOG_DISARMED 1\n" \
