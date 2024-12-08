@@ -12,7 +12,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Code by Charles "Silvanosky" Villard, David "Buzz" Bussenschutt and Andrey "ARg" Romanov
+ * Code by Charles "Silvanosky" Villard, David "Buzz" Bussenschutt,
+ * Andrey "ARg" Romanov, and Thomas "tpw_rules" Watson
  *
  */
 
@@ -49,7 +50,44 @@ gpio_num_t outputs_pins[] = {};
 
 #endif
 
+/*
+ * The ESP32/ESP32S3 MCPWM (motor control PWM) peripheral is used to generate
+ * PWM signals for RC output. It is divided up into the following blocks:
+ *  * The chip has SOC_MCPWM_GROUPS (2) groups
+ *  * Each group has SOC_MCPWM_TIMERS_PER_GROUP (3) timers and operators
+ *  * Each operator has SOC_MCPWM_COMPARATORS_PER_OPERATOR (2) comparators and
+ *    generators
+ *  * Each generator can drive one GPIO pin
+ * Though there is more possible, we use the following capabilities:
+ *  * Groups have an 8 bit integer divider from the 160MHz peripheral clock
+ *  * Each timer has an 8 bit integer divider from the group clock, a 16 bit
+ *    period, and is connected to exactly one operator
+ *  * Each comparator in an operator acts on the corresponding timer's value and
+ *    is connected to exactly one generator which drives exactly one GPIO pin
+ *
+ * Therefore, each MCPWM group gives us 3 independent "PWM groups" (in the STM32
+ * sense) which contain 2 GPIO pins. The pins are assigned consecutively from
+ * the HAL_ESP32_RCOUT list. The frequency of each group can be controlled
+ * independently by changing that timer's period.
+ *  * Running the timer at 1MHz allows 16-1000Hz with at least 1000 ticks per
+ *    cycle. It also makes assigning the compare value easy
+ *
+ * MCPWM is only capable of PWM; DMA-based modes will require using the RMT
+ * peripheral.
+ *
+ */
+
+// each of our PWM groups has its own timer
+#define MAX_GROUPS (SOC_MCPWM_GROUPS*SOC_MCPWM_TIMERS_PER_GROUP)
+// we connect one timer to one operator
+static_assert(SOC_MCPWM_OPERATORS_PER_GROUP >= SOC_MCPWM_TIMERS_PER_GROUP);
+// and one generator to one comparator
+static_assert(SOC_MCPWM_GENERATORS_PER_OPERATOR >= SOC_MCPWM_COMPARATORS_PER_OPERATOR);
+
 #define MAX_CHANNELS ARRAY_SIZE(outputs_pins)
+
+#define NEEDED_GROUPS ((MAX_CHANNELS+SOC_MCPWM_COMPARATORS_PER_OPERATOR-1)/SOC_MCPWM_COMPARATORS_PER_OPERATOR)
+static_assert(NEEDED_GROUPS <= MAX_GROUPS, "not enough hardware PWM groups");
 
 struct RCOutput::pwm_out RCOutput::pwm_group_list[MAX_CHANNELS];
 

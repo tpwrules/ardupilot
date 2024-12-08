@@ -12,7 +12,8 @@
  * You should have received a copy of the GNU General Public License along
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
- * Code by Charles "Silvanosky" Villard, David "Buzz" Bussenschutt and Andrey "ARg" Romanov
+ * Code by Charles "Silvanosky" Villard, David "Buzz" Bussenschutt,
+ * Andrey "ARg" Romanov, and Thomas "tpw_rules" Watson'
  *
  */
 
