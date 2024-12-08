@@ -30,8 +30,8 @@
 
 #include "esp_log.h"
 
-#define SERVO_TIMEBASE_RESOLUTION_HZ 1000000  // 1MHz, 1us per tick
-#define SERVO_TIMEBASE_PERIOD        20000    // 20000 ticks, 20ms
+#define SERVO_TIMEBASE_RESOLUTION_HZ 80000000  // 80MHz, 12.5ns per tick
+#define SERVO_TIMEBASE_PERIOD        800       // 800 ticks, 10us (100KHz)
 
 #define TAG "RCOut"
 
@@ -193,6 +193,8 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
         return;
     }
 
+    return;
+
     for (auto &group : pwm_group_list) {
         if ((group.ch_mask & chmask) != 0) { // group has channels to set?
             uint16_t group_freq = constrain_value((int)freq_hz, 16, 400); // > 400 leaves not enough time for the down edge
@@ -335,11 +337,17 @@ void RCOutput::write_int(uint8_t chan, uint16_t period_us)
     }
 
     pwm_out &out = pwm_out_list[chan];
-    if (period_us > SERVO_TIMEBASE_PERIOD) {
-        period_us = SERVO_TIMEBASE_PERIOD;
-    }
-    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, period_us));
     out.value = period_us;
+    // hack, todo need to implement set_output_mode
+    float duty = 0;
+    if (period_us <= _esc_pwm_min) {
+        duty = 0;
+    } else if (period_us >= _esc_pwm_max) {
+        duty = 1;
+    } else {
+        duty = ((float)(period_us - _esc_pwm_min))/(_esc_pwm_max - _esc_pwm_min);
+    }
+    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, duty*SERVO_TIMEBASE_PERIOD));
 }
 
 /*
