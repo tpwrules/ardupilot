@@ -30,8 +30,12 @@
 
 #include "esp_log.h"
 
-#define SERVO_TIMEBASE_RESOLUTION_HZ 80000000  // 80MHz, 12.5ns per tick
-#define SERVO_TIMEBASE_PERIOD        800       // 800 ticks, 10us (100KHz)
+// default settings for PWM ("normal") and brushed mode
+#define SERVO_TIMEBASE_RESOLUTION_HZ 1000000   // 1MHz, 1000ns per tick
+#define SERVO_TIMEBASE_PERIOD        20000     // 20K ticks, 20ms (50Hz)
+
+#define BRUSH_TIMEBASE_RESOLUTION_HZ 40000000  // 40MHz, 25ns per tick
+#define BRUSH_TIMEBASE_PERIOD        1250      // 1250 ticks, 31.25us (32KHz)
 
 #define TAG "RCOut"
 
@@ -69,8 +73,10 @@ gpio_num_t outputs_pins[] = {};
  * sense) which contain 2 GPIO pins. The pins are assigned consecutively from
  * the HAL_ESP32_RCOUT list. The frequency of each group can be controlled
  * independently by changing that timer's period.
- *  * Running the timer at 1MHz allows 16-1000Hz with at least 1000 ticks per
- *    cycle. It also makes assigning the compare value easy
+ *  * For regular PWM output, running the timer at 1MHz allows 16-1000Hz with at
+ *    least 1000 ticks per cycle. It also makes setting the compare value easy
+ *  * For brushed PWM output, running the timer at 40MHz allows 650-32000Hz with
+ *    at least 1000 ticks per cycle. It also makes an easy divider setting.
  *
  * MCPWM is only capable of PWM; DMA-based modes will require using the RMT
  * peripheral.
@@ -133,6 +139,7 @@ void RCOutput::init()
             // configure group
             curr_group->mcpwm_group_id = mcpwm_group_id;
             curr_group->rc_frequency = SERVO_TIMEBASE_RESOLUTION_HZ/SERVO_TIMEBASE_PERIOD;
+            curr_group->current_mode = MODE_PWM_NORMAL;
             curr_group->ch_mask = 0;
 
             // create timer and configure it to constantly run
@@ -193,16 +200,27 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
         return;
     }
 
-    return;
-
     for (auto &group : pwm_group_list) {
         if ((group.ch_mask & chmask) != 0) { // group has channels to set?
-            uint16_t group_freq = constrain_value((int)freq_hz, 16, 400); // > 400 leaves not enough time for the down edge
-            ESP_ERROR_CHECK(mcpwm_timer_set_period(group.h_timer, SERVO_TIMEBASE_RESOLUTION_HZ/group_freq));
+            uint16_t group_freq = 0;
+
+            switch (group.current_mode) {
+            case MODE_PWM_BRUSHED:
+                group_freq = constrain_value((int)group_freq, 650, 32000);
+                ESP_ERROR_CHECK(mcpwm_timer_set_period(group.h_timer, BRUSH_TIMEBASE_RESOLUTION_HZ/group_freq));
+                break;
+
+            case MODE_PWM_NORMAL:
+            default: // i.e. NONE
+                group_freq = constrain_value((int)group_freq, 16, 1000);
+                ESP_ERROR_CHECK(mcpwm_timer_set_period(group.h_timer, SERVO_TIMEBASE_RESOLUTION_HZ/group_freq));
+                break;
+            }
+
             group.rc_frequency = group_freq;
 
             // disallow changing frequency of this group if it is greater than the default
-            if (group_freq > 50) {
+            if (group_freq > 50 || group.current_mode > MODE_PWM_NORMAL) {
                 fast_channel_mask |= group.ch_mask;
             }
         }
@@ -219,6 +237,132 @@ void RCOutput::set_default_rate(uint16_t freq_hz)
         // only set frequency of groups without fast channels
         if (!(group.ch_mask & fast_channel_mask) && group.ch_mask) {
             set_freq(group.ch_mask, freq_hz);
+        }
+    }
+}
+
+/*
+  setup output mode for a group, using group.current_mode.
+ */
+void RCOutput::set_group_mode(pwm_group &group)
+{
+    // calculate timer config
+    mcpwm_timer_config_t timer_config;
+    switch (group.current_mode) {
+    case MODE_PWM_BRUSHED:
+        group.rc_frequency = constrain_value((unsigned int)group.rc_frequency, 650U, 32000U);
+        timer_config = {
+            .group_id = group.mcpwm_group_id,
+            .clk_src = MCPWM_TIMER_CLK_SRC_PLL160M,
+            .resolution_hz = BRUSH_TIMEBASE_RESOLUTION_HZ,
+            .count_mode = MCPWM_TIMER_COUNT_MODE_UP,
+            .period_ticks = BRUSH_TIMEBASE_RESOLUTION_HZ/group.rc_frequency,
+        };
+        printf("config of brush %lu = %lu\n", group.rc_frequency, BRUSH_TIMEBASE_RESOLUTION_HZ/group.rc_frequency);
+        break;
+
+    default:
+        if (group.current_mode != MODE_PWM_NORMAL) {
+            // set unrecognized modes to NONE (but treat them as 0 output normal)
+            group.current_mode = MODE_PWM_NONE;
+        }
+
+        group.rc_frequency = constrain_value((unsigned int)group.rc_frequency, 16U, 1000U);
+        timer_config = {
+            .group_id = group.mcpwm_group_id,
+            .clk_src = MCPWM_TIMER_CLK_SRC_PLL160M,
+            .resolution_hz = SERVO_TIMEBASE_RESOLUTION_HZ,
+            .count_mode = MCPWM_TIMER_COUNT_MODE_UP,
+            .period_ticks = SERVO_TIMEBASE_RESOLUTION_HZ/group.rc_frequency,
+        };
+        break;
+    }
+
+    // delete comparators/generators attached to this group
+    for (uint8_t chan=0; chan<MAX_CHANNELS; chan++) {
+        pwm_out &out = pwm_out_list[chan];
+        if (out.group != &group) {
+            continue;
+        }
+
+        ESP_ERROR_CHECK(mcpwm_del_generator(out.h_gen));
+        ESP_ERROR_CHECK(mcpwm_del_comparator(out.h_cmpr));
+    }
+
+    // delete the operator and timer
+    ESP_ERROR_CHECK(mcpwm_del_operator(group.h_oper));
+    ESP_ERROR_CHECK(mcpwm_timer_disable(group.h_timer));
+    ESP_ERROR_CHECK(mcpwm_del_timer(group.h_timer));
+
+    // re-create the timer with the correct settings
+    ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &group.h_timer));
+    ESP_ERROR_CHECK(mcpwm_timer_enable(group.h_timer));
+    ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_NO_STOP));
+
+    // operator connects timer and comparator
+    mcpwm_operator_config_t operator_config = {
+        .group_id = group.mcpwm_group_id,
+    };
+
+    // create and connect operator
+    ESP_ERROR_CHECK(mcpwm_new_operator(&operator_config, &group.h_oper));
+    ESP_ERROR_CHECK(mcpwm_operator_connect_timer(group.h_oper, group.h_timer));
+
+    // re-initialize comparators/generators
+    for (uint8_t chan=0; chan<MAX_CHANNELS; chan++) {
+        pwm_out &out = pwm_out_list[chan];
+        if (out.group != &group) {
+            continue;
+        }
+
+        mcpwm_comparator_config_t comparator_config = {
+            .flags = {
+                .update_cmp_on_tez = true, // grab new comparator value when timer is zero
+            },
+        };
+
+        mcpwm_generator_config_t generator_config = {
+            .gen_gpio_num = out.gpio_num,
+        };
+
+        if (group.current_mode == MODE_PWM_NONE) {
+            out.value = 0;
+        }
+
+        // create and connect comparator set to output 0
+        ESP_ERROR_CHECK(mcpwm_new_comparator(group.h_oper, &comparator_config, &out.h_cmpr));
+        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, 0));
+
+        // create and connect generator
+        ESP_ERROR_CHECK(mcpwm_new_generator(group.h_oper, &generator_config, &out.h_gen));
+        // go low on compare threshold (takes priority over going high)
+        ESP_ERROR_CHECK(mcpwm_generator_set_action_on_compare_event(out.h_gen,
+            MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
+                out.h_cmpr, MCPWM_GEN_ACTION_LOW)));
+        // go high on counter empty
+        ESP_ERROR_CHECK(mcpwm_generator_set_action_on_timer_event(out.h_gen,
+            MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
+                MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH)));
+    }
+}
+
+void RCOutput::set_output_mode(uint32_t mask, const enum output_mode mode)
+{
+    while (mask) {
+        uint8_t chan = __builtin_ffs(mask)-1;
+        if (!_initialized || chan >= MAX_CHANNELS) {
+            return;
+        }
+
+        pwm_group &group = *pwm_out_list[chan].group;
+        group.current_mode = mode;
+        set_group_mode(group);
+
+        // acknowledge the setting of any channels sharing this group
+        for (chan=0; chan<MAX_CHANNELS; chan++) {
+            if (pwm_out_list[chan].group == &group) {
+                mask &= ~(1U << chan);
+            }
         }
     }
 }
@@ -338,16 +482,35 @@ void RCOutput::write_int(uint8_t chan, uint16_t period_us)
 
     pwm_out &out = pwm_out_list[chan];
     out.value = period_us;
-    // hack, todo need to implement set_output_mode
-    float duty = 0;
-    if (period_us <= _esc_pwm_min) {
-        duty = 0;
-    } else if (period_us >= _esc_pwm_max) {
-        duty = 1;
-    } else {
-        duty = ((float)(period_us - _esc_pwm_min))/(_esc_pwm_max - _esc_pwm_min);
+
+    switch(out.group->current_mode) {
+    case MODE_PWM_BRUSHED: {
+        float duty = 0;
+        if (period_us <= _esc_pwm_min) {
+            duty = 0;
+        } else if (period_us >= _esc_pwm_max) {
+            duty = 1;
+        } else {
+            duty = ((float)(period_us - _esc_pwm_min))/(_esc_pwm_max - _esc_pwm_min);
+        }
+
+        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr,
+            duty*BRUSH_TIMEBASE_RESOLUTION_HZ/out.group->rc_frequency));
+        break;
     }
-    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, duty*SERVO_TIMEBASE_PERIOD));
+
+    case MODE_PWM_NONE:
+    default:
+        period_us = 0;
+    // fallthrough
+    case MODE_PWM_NORMAL:
+        if (period_us > SERVO_TIMEBASE_PERIOD) {
+            period_us = SERVO_TIMEBASE_PERIOD;
+            out.value = SERVO_TIMEBASE_PERIOD;
+        }
+        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, period_us));
+        break;
+    }
 }
 
 /*
