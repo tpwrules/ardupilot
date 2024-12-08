@@ -29,8 +29,8 @@
 
 #include "esp_log.h"
 
-#define SERVO_TIMEBASE_RESOLUTION_HZ 80000000  // 80MHz, 12.5ns per tick
-#define SERVO_TIMEBASE_PERIOD        800       // 800 ticks, 10us (100KHz)
+#define SERVO_TIMEBASE_RESOLUTION_HZ 1000000  // 1MHz, 1us per tick
+#define SERVO_TIMEBASE_PERIOD        20000    // 20000 ticks, 20ms
 
 #define TAG "RCOut"
 
@@ -130,8 +130,8 @@ void RCOutput::init()
         };
         ESP_ERROR_CHECK(mcpwm_new_generator(out.h_oper, &generator_config, &out.h_gen));
 
-        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, 0));
-        out.value = 0;
+        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, 1500));
+        out.value = 1500;
         
         ESP_LOGI(TAG, "Set generator action on timer and compare event");
         // go high on counter empty
@@ -153,8 +153,6 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
     if (!_initialized) {
         return;
     }
-
-    return;
 
     for (uint8_t i = 0; i < MAX_CHANNELS; i++) {
         if (chmask & 1 << i) {
@@ -283,17 +281,8 @@ void RCOutput::write_int(uint8_t chan, uint16_t period_us)
     }
 
     pwm_out &out = pwm_group_list[chan];
+    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, period_us));
     out.value = period_us;
-    // hack, todo need to implement set_output_mode
-    float duty = 0;
-    if (period_us <= _esc_pwm_min) {
-        duty = 0;
-    } else if (period_us >= _esc_pwm_max) {
-        duty = 1;
-    } else {
-        duty = ((float)(period_us - _esc_pwm_min))/(_esc_pwm_max - _esc_pwm_min);
-    }
-    ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, duty*SERVO_TIMEBASE_PERIOD));
 }
 
 /*
