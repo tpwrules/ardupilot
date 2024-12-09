@@ -31,7 +31,7 @@
 #include "esp_log.h"
 
 // default settings for PWM ("normal") and brushed mode
-#define SERVO_TIMEBASE_RESOLUTION_HZ 1000000   // 1MHz, 1000ns per tick
+#define SERVO_TIMEBASE_RESOLUTION_HZ 40000000   // 1MHz, 1000ns per tick
 #define SERVO_TIMEBASE_PERIOD        20000     // 20K ticks, 20ms (50Hz)
 
 #define BRUSH_TIMEBASE_RESOLUTION_HZ 40000000  // 40MHz, 25ns per tick
@@ -214,7 +214,7 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
 
             case MODE_PWM_NORMAL:
             default: // i.e. NONE
-                group_freq = constrain_value((int)group_freq, 16, 1000);
+                group_freq = constrain_value((int)group_freq, 650, 1000);
                 ESP_ERROR_CHECK(mcpwm_timer_set_period(group.h_timer, SERVO_TIMEBASE_RESOLUTION_HZ/group_freq));
                 break;
             }
@@ -274,7 +274,7 @@ void RCOutput::set_group_mode(pwm_group &group)
             group.current_mode = MODE_PWM_NONE;
         }
 
-        group.rc_frequency = constrain_value((unsigned int)group.rc_frequency, 16U, 1000U);
+        group.rc_frequency = constrain_value((unsigned int)group.rc_frequency, 650U, 1000U);
         timer_config = {
             .group_id = group.mcpwm_group_id,
             .clk_src = MCPWM_TIMER_CLK_SRC_PLL160M,
