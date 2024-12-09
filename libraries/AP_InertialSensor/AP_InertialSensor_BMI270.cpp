@@ -141,7 +141,7 @@ const uint8_t AP_InertialSensor_BMI270::maximum_fifo_config_file[] = { BMI270_RE
  * FIFO most of the time (99.99%). */
 #define BMI270_MAX_FIFO_SAMPLES 8
 
-#define BMI270_HARDWARE_INIT_MAX_TRIES 50
+#define BMI270_HARDWARE_INIT_MAX_TRIES 5
 
 const uint32_t BACKEND_PERIOD_US = 1000000UL / BMI270_BACKEND_SAMPLE_RATE;
 
