@@ -200,9 +200,11 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
         return;
     }
 
+    printf("set freq %04X %d %04X\n", (int)chmask, freq_hz, (int)fast_channel_mask);
+
     for (auto &group : pwm_group_list) {
         if ((group.ch_mask & chmask) != 0) { // group has channels to set?
-            uint16_t group_freq = 0;
+            uint16_t group_freq = freq_hz;
 
             switch (group.current_mode) {
             case MODE_PWM_BRUSHED:
@@ -217,6 +219,7 @@ void RCOutput::set_freq(uint32_t chmask, uint16_t freq_hz)
                 break;
             }
 
+            printf("set rc freq %04X %d\n", (int)(group.ch_mask & chmask), group_freq);
             group.rc_frequency = group_freq;
 
             // disallow changing frequency of this group if it is greater than the default
@@ -233,10 +236,14 @@ void RCOutput::set_default_rate(uint16_t freq_hz)
         return;
     }
 
+    printf("set default rate %d %04X\n", freq_hz, (int)fast_channel_mask);
+
     for (auto &group : pwm_group_list) {
         // only set frequency of groups without fast channels
         if (!(group.ch_mask & fast_channel_mask) && group.ch_mask) {
             set_freq(group.ch_mask, freq_hz);
+            // setting a high default frequency can't make channels fast
+            fast_channel_mask &= ~group.ch_mask;
         }
     }
 }
@@ -276,6 +283,10 @@ void RCOutput::set_group_mode(pwm_group &group)
             .period_ticks = SERVO_TIMEBASE_RESOLUTION_HZ/group.rc_frequency,
         };
         break;
+    }
+
+    if (group.current_mode > MODE_PWM_NORMAL) {
+        fast_channel_mask |= group.ch_mask;
     }
 
     // delete comparators/generators attached to this group
@@ -355,6 +366,7 @@ void RCOutput::set_output_mode(uint32_t mask, const enum output_mode mode)
         }
 
         pwm_group &group = *pwm_out_list[chan].group;
+        printf("set group mode %04X %d\n", (int)(mask & group.ch_mask), mode);
         group.current_mode = mode;
         set_group_mode(group);
 
