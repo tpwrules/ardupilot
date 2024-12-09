@@ -298,16 +298,16 @@ void RCOutput::set_group_mode(pwm_group &group)
     ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &group.h_timer));
     ESP_ERROR_CHECK(mcpwm_timer_enable(group.h_timer));
 
+    // set timer to stop at 0
     ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_STOP_EMPTY));
 
-    for (int i=0; i<500; i++)
-        hal.scheduler->delay_microseconds(1000);
     mcpwm_sync_handle_t h_sync;
     mcpwm_soft_sync_config_t sync_config {
 
     };
     ESP_ERROR_CHECK(mcpwm_new_soft_sync_src(&sync_config, &h_sync));
 
+    // set sync to force it to 0
     mcpwm_timer_sync_phase_config_t timer_sync_config {
         .sync_src = h_sync,
         .count_value = 0,
@@ -323,6 +323,10 @@ void RCOutput::set_group_mode(pwm_group &group)
 
     ESP_ERROR_CHECK(mcpwm_del_sync_src(h_sync));
 
+    // wait for it to stop and the prescaler reload to happen
+    hal.scheduler->delay_microseconds(100);
+
+    // get it going again
     ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_NO_STOP));
 }
 
