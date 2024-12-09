@@ -289,73 +289,43 @@ void RCOutput::set_group_mode(pwm_group &group)
         fast_channel_mask |= group.ch_mask;
     }
 
-    // delete comparators/generators attached to this group
-    for (uint8_t chan=0; chan<MAX_CHANNELS; chan++) {
-        pwm_out &out = pwm_out_list[chan];
-        if (out.group != &group) {
-            continue;
-        }
-
-        ESP_ERROR_CHECK(mcpwm_del_generator(out.h_gen));
-        ESP_ERROR_CHECK(mcpwm_del_comparator(out.h_cmpr));
-    }
-
     // delete the operator and timer
-    ESP_ERROR_CHECK(mcpwm_del_operator(group.h_oper));
+    //ESP_ERROR_CHECK(mcpwm_del_operator(group.h_oper));
     ESP_ERROR_CHECK(mcpwm_timer_disable(group.h_timer));
     ESP_ERROR_CHECK(mcpwm_del_timer(group.h_timer));
 
     // re-create the timer with the correct settings
     ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &group.h_timer));
     ESP_ERROR_CHECK(mcpwm_timer_enable(group.h_timer));
-    ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_NO_STOP));
 
-    // operator connects timer and comparator
-    mcpwm_operator_config_t operator_config = {
-        .group_id = group.mcpwm_group_id,
+    ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_STOP_EMPTY));
+
+    for (int i=0; i<500; i++)
+        hal.scheduler->delay_microseconds(1000);
+    mcpwm_sync_handle_t h_sync;
+    mcpwm_soft_sync_config_t sync_config {
+
+    };
+    ESP_ERROR_CHECK(mcpwm_new_soft_sync_src(&sync_config, &h_sync));
+
+    mcpwm_timer_sync_phase_config_t timer_sync_config {
+        .sync_src = h_sync,
+        .count_value = 0,
+        .direction = MCPWM_TIMER_DIRECTION_UP,
     };
 
-    // create and connect operator
-    ESP_ERROR_CHECK(mcpwm_new_operator(&operator_config, &group.h_oper));
-    ESP_ERROR_CHECK(mcpwm_operator_connect_timer(group.h_oper, group.h_timer));
+    ESP_ERROR_CHECK(mcpwm_timer_set_phase_on_sync(group.h_timer, &timer_sync_config));
 
-    // re-initialize comparators/generators
-    for (uint8_t chan=0; chan<MAX_CHANNELS; chan++) {
-        pwm_out &out = pwm_out_list[chan];
-        if (out.group != &group) {
-            continue;
-        }
+    ESP_ERROR_CHECK(mcpwm_soft_sync_activate(h_sync));
 
-        mcpwm_comparator_config_t comparator_config = {
-            .flags = {
-                .update_cmp_on_tez = true, // grab new comparator value when timer is zero
-            },
-        };
+    timer_sync_config.sync_src = nullptr;
+    ESP_ERROR_CHECK(mcpwm_timer_set_phase_on_sync(group.h_timer, &timer_sync_config));
 
-        mcpwm_generator_config_t generator_config = {
-            .gen_gpio_num = out.gpio_num,
-        };
+    ESP_ERROR_CHECK(mcpwm_del_sync_src(h_sync));
 
-        if (group.current_mode == MODE_PWM_NONE) {
-            out.value = 0;
-        }
-
-        // create and connect comparator set to output 0
-        ESP_ERROR_CHECK(mcpwm_new_comparator(group.h_oper, &comparator_config, &out.h_cmpr));
-        ESP_ERROR_CHECK(mcpwm_comparator_set_compare_value(out.h_cmpr, 0));
-
-        // create and connect generator
-        ESP_ERROR_CHECK(mcpwm_new_generator(group.h_oper, &generator_config, &out.h_gen));
-        // go low on compare threshold (takes priority over going high)
-        ESP_ERROR_CHECK(mcpwm_generator_set_action_on_compare_event(out.h_gen,
-            MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
-                out.h_cmpr, MCPWM_GEN_ACTION_LOW)));
-        // go high on counter empty
-        ESP_ERROR_CHECK(mcpwm_generator_set_action_on_timer_event(out.h_gen,
-            MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
-                MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH)));
-    }
+    ESP_ERROR_CHECK(mcpwm_timer_start_stop(group.h_timer, MCPWM_TIMER_START_NO_STOP));
 }
+
 
 void RCOutput::set_output_mode(uint32_t mask, const enum output_mode mode)
 {
