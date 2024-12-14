@@ -4,6 +4,8 @@
 
 include ../MatekH743/hwdef.dat
 
+MCU_CLOCKRATE_MHZ 480
+
 # undefine the pins we are going to change
 undef PC7 PC6 PB0 PB1 PA0 PA1 PA15 PD14 PD15 PE5 PE6 PA2 PA3 PD12 PD13 PB9 PB8 PE0 PE1
 
