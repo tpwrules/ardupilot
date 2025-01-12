@@ -805,8 +805,6 @@ def _build_common_taskgens(bld):
         ap_libraries=bld.ap_get_all_libraries(),
     )
 
-    bld.littlefs()
-
     if bld.env.HAS_GTEST:
         bld.libgtest(cxxflags=['-include', 'ap_config.h'])
 
@@ -905,6 +903,10 @@ def build(bld):
 
     if bld.get_board().with_can:
         bld.env.AP_LIBRARIES_OBJECTS_KW['use'] += ['dronecan']
+
+    if bld.get_board().with_littlefs:
+        bld.env.AP_LIBRARIES_OBJECTS_KW['use'] += ['littlefs']
+        bld.littlefs()
 
     _build_cmd_tweaks(bld)
 
