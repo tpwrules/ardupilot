@@ -234,6 +234,9 @@ private:
     // fence floor is enabled
     bool floor_enabled() const { return _enabled_fences & AC_FENCE_TYPE_ALT_MIN; }
 
+    // log event transitions
+    static void log_events(uint8_t fences_to_change, bool value);
+
     // parameters
     uint8_t         _enabled_fences;        // fences that are currently enabled/disabled
     bool            _last_enabled;          // value of enabled last time we checked
@@ -242,6 +245,7 @@ private:
     uint8_t         _last_auto_enabled;     // value of auto_enabled last time we checked
     AP_Int8         _configured_fences;     // bit mask holding which fences are enabled
     AP_Int8         _action;                // recovery action specified by user
+    uint8_t         _last_configured;       // value of configured last time we checked
     AP_Float        _alt_max;               // altitude upper limit in meters
     AP_Float        _alt_min;               // altitude lower limit in meters
     AP_Float        _circle_radius;         // circle fence radius in meters

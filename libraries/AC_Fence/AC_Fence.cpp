@@ -171,6 +171,7 @@ AC_Fence::AC_Fence()
     AP_Param::setup_object_defaults(this, var_info);
     if (_enabled) {
         _enabled_fences = _configured_fences.get() & ~AC_FENCE_TYPE_ALT_MIN;
+        log_events(_enabled_fences, true);
     }
 }
 
@@ -226,14 +227,21 @@ void AC_Fence::print_fence_message(const char* message, uint8_t fences) const
 void AC_Fence::update()
 {
     _poly_loader.update();
-    // if someone changes the parameter we want to enable or disable everything
-    if (_enabled != _last_enabled || _auto_enabled != _last_auto_enabled) {
+    // if someone changes the parameters we want to enable or disable everything
+    if (_enabled != _last_enabled || _auto_enabled != _last_auto_enabled || _configured_fences != _last_configured) {
         // reset the auto mask since we just reconfigured all of fencing
         _last_enabled = _enabled;
         _last_auto_enabled = _auto_enabled;
+        _last_configured = _configured_fences;
         if (_enabled) {
+            uint8_t new_enabled_set = _configured_fences.get() & ~AC_FENCE_TYPE_ALT_MIN;
+            uint8_t switch_off = _enabled_fences & ~new_enabled_set;
+            uint8_t switch_on = new_enabled_set & ~_enabled_fences;
+            log_events(switch_off, false);
+            log_events(switch_on, true);
             _enabled_fences = _configured_fences.get() & ~AC_FENCE_TYPE_ALT_MIN;
         } else {
+            log_events(_enabled_fences, false);
             _enabled_fences = 0;
         }
     }
@@ -270,7 +278,24 @@ uint8_t AC_Fence::enable(bool value, uint8_t fence_types, bool update_auto_enabl
         return 0;
     }
 
+    log_events(fences_to_change, value);
+
+    _enabled_fences = enabled_fences;
+
+    if (!value) {
+        clear_breach(fences_to_change);
+    }
+
+    return fences_to_change;
+}
+
+// log fence transitions
+void AC_Fence::log_events(uint8_t fences_to_change, bool value)
+{
 #if HAL_LOGGING_ENABLED
+    if (!fences_to_change) {
+        return;
+    }
     AP::logger().Write_Event(value ? LogEvent::FENCE_ENABLE : LogEvent::FENCE_DISABLE);
     if (fences_to_change & AC_FENCE_TYPE_ALT_MAX) {
         AP::logger().Write_Event(value ? LogEvent::FENCE_ALT_MAX_ENABLE : LogEvent::FENCE_ALT_MAX_DISABLE);
@@ -285,14 +310,6 @@ uint8_t AC_Fence::enable(bool value, uint8_t fence_types, bool update_auto_enabl
         AP::logger().Write_Event(value ? LogEvent::FENCE_POLYGON_ENABLE : LogEvent::FENCE_POLYGON_DISABLE);
     }
 #endif
-
-    _enabled_fences = enabled_fences;
-
-    if (!value) {
-        clear_breach(fences_to_change);
-    }
-
-    return fences_to_change;
 }
 
 /// enable/disable fence floor only
