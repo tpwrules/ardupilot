@@ -143,7 +143,7 @@ bool GliderPullup::verify_pullup(void)
     case Stage::WAIT_LEVEL: {
         // When pitch has raised past lower limit used by speed controller, wait for airspeed to approach
         // target value before handing over control of pitch demand to speed controller
-        bool pitchup_complete = ahrs.pitch_sensor*0.01 > MIN(0, aparm.pitch_limit_min);
+        bool pitchup_complete = ahrs.pitch_sensor*0.01 > MIN(0, (float)aparm.pitch_limit_min);
         const float pitch_lag_time = 1.0f * sqrtf(ahrs.get_EAS2TAS());
         float aspeed;
         const float aspeed_derivative = (ahrs.get_accel().x + GRAVITY_MSS * ahrs.get_DCM_rotation_body_to_ned().c.x) / ahrs.get_EAS2TAS();

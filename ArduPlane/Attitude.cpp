@@ -664,7 +664,7 @@ void Plane::update_load_factor(void)
 #endif
 
     float stall_airspeed_1g = is_positive(aparm.airspeed_stall)
-                                  ? aparm.airspeed_stall
+                                  ? (float)aparm.airspeed_stall
                                   : aparm.airspeed_min;
 
     float max_load_factor =

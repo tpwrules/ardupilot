@@ -1032,7 +1032,7 @@ void Plane::exit_mission_callback()
 #if HAL_QUADPLANE_ENABLED
 bool Plane::verify_landing_vtol_approach(const AP_Mission::Mission_Command &cmd)
 {
-    const float radius = is_zero(quadplane.fw_land_approach_radius)? aparm.loiter_radius : quadplane.fw_land_approach_radius;
+    const float radius = is_zero(quadplane.fw_land_approach_radius)? aparm.loiter_radius : (float)quadplane.fw_land_approach_radius;
     const int8_t direction = is_negative(radius) ? -1 : 1;
     const float abs_radius = fabsf(radius);
 

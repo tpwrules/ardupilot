@@ -518,7 +518,7 @@ const char* AP_Quicktune::get_param_name(AP_Quicktune::Param param) const
 
 float AP_Quicktune::get_gain_mul() const
 {
-    return expf(logf(2.0)/(UPDATE_RATE_HZ*MAX(1,double_time)));
+    return expf(logf(2.0)/(UPDATE_RATE_HZ*MAX(1, (float)double_time)));
 }
 
 void AP_Quicktune::restore_all_params()

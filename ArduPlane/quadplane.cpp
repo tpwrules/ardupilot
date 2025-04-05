@@ -2370,7 +2370,7 @@ void QuadPlane::vtol_position_controller(void)
         }
         
         // speed for crossover to POSITION1 controller
-        const float aspeed_threshold = MAX(plane.aparm.airspeed_min-2, assist.speed);
+        const float aspeed_threshold = MAX(plane.aparm.airspeed_min-2, (float)assist.speed);
 
         // run fixed wing navigation
         plane.nav_controller->update_waypoint(plane.auto_state.crosstrack ? plane.prev_WP_loc : plane.current_loc, loc);
@@ -2980,7 +2980,7 @@ void QuadPlane::assign_tilt_to_fwd_thr(void)
     float fwd_thr_scaler;
     if (!in_vtol_land_approach()) {
         // To prevent forward motor prop strike, reduce throttle to zero when close to ground.
-        float alt_cutoff = MAX(0,vel_forward_alt_cutoff);
+        float alt_cutoff = MAX(0, (float)vel_forward_alt_cutoff);
         float height_above_ground = plane.relative_ground_altitude(plane.g.rangefinder_landing);
         fwd_thr_scaler = linear_interpolate(0.0f, 1.0f, height_above_ground, alt_cutoff, alt_cutoff+2);
     } else {
@@ -3794,7 +3794,7 @@ float QuadPlane::forward_throttle_pct()
     } else {
         // If we are below alt_cutoff then scale down the effect until
         // it turns off at alt_cutoff and decay the integrator
-        float alt_cutoff = MAX(0,vel_forward_alt_cutoff);
+        float alt_cutoff = MAX(0, (float)vel_forward_alt_cutoff);
         float height_above_ground = plane.relative_ground_altitude(plane.g.rangefinder_landing);
 
         vel_forward.last_pct = linear_interpolate(0, vel_forward.integrator,
