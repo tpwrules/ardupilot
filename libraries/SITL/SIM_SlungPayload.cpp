@@ -441,7 +441,7 @@ void SlungPayloadSim::update_payload(const Vector3p& veh_pos, const Vector3f& ve
     veh_forces_ef = -tension_force_NED;
 
     // convert force to acceleration (f=m*a => a=f/m)
-    accel_NED = (force_gravity_NED + force_drag_NED + tension_force_NED) / weight_kg;
+    accel_NED = (force_gravity_NED + force_drag_NED + tension_force_NED) / (float)weight_kg;
 
     // if slung payload is landed we zero out downward (e.g positive) acceleration
     if (landed) {

@@ -200,7 +200,7 @@ void StratoBlimp::get_drag(const Vector3f &velocity_linear,
     Vector3f drag_force = drag_linear * mass;
     Vector3f drag_pos{-center_of_drag, 0, -center_of_lift};
     Vector3f drag_torque = (drag_pos % drag_force);
-    drag_rotaccel += drag_torque / moi_pitch;
+    drag_rotaccel += drag_torque / (float)moi_pitch;
 }
 
 /*
@@ -260,14 +260,14 @@ void StratoBlimp::calculate_forces(const struct sitl_input &input, Vector3f &bod
         Vector3f lift_thrust_ef{0, 0, -get_lift(location.alt*0.01)};
         Vector3f lift_thrust_bf = dcm.transposed() * lift_thrust_ef;
 
-        body_acc += lift_thrust_bf / mass;
+        body_acc += lift_thrust_bf / (float)mass;
 
         /*
           apply righting moment
          */
         Vector3f lift_pos{0, 0, -center_of_lift};
         Vector3f lift_torque = (lift_pos % lift_thrust_bf);
-        rot_accel += lift_torque / moi_roll;
+        rot_accel += lift_torque / (float)moi_roll;
     }
 }
 

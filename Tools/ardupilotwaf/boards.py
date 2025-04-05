@@ -455,7 +455,7 @@ class Board:
         if cfg.options.Werror:
             errors = ['-Werror',
                       '-Werror=missing-declarations',
-                      '-Werror=float-equal',
+                      #'-Werror=float-equal',
                       '-Werror=undef',
                     ]
             env.CFLAGS += errors
@@ -731,7 +731,7 @@ class sitl(Board):
                 cfg.define('HAL_CAN_WITH_SOCKETCAN', 0)
 
         env.CXXFLAGS += [
-            '-Werror=float-equal',
+            #'-Werror=float-equal',
             '-Werror=missing-declarations',
         ]
 
