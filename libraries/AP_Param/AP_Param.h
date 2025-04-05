@@ -887,7 +887,7 @@ namespace AP {
 /// @tparam PT			The AP_PARAM_* type
 ///
 template<typename T, ap_var_type PT>
-class AP_ParamT : public AP_Param
+class AP_ParamTB : public AP_Param
 {
 public:
     static const ap_var_type        vtype = PT;
@@ -930,14 +930,6 @@ public:
     /// updated correctly.
     void set_and_save_ifchanged(const T &v);
 
-    /// Conversion to T returns a reference to the value.
-    ///
-    /// This allows the class to be used in many situations where the value would be legal.
-    ///
-    operator const T &() const {
-        return _value;
-    }
-
     /// AP_ParamT types can implement AP_Param::cast_to_float
     ///
     float cast_to_float(void) const;
@@ -946,6 +938,76 @@ protected:
     T _value;
 };
 
+template<typename T, ap_var_type PT>
+class AP_ParamT : public AP_ParamTB<T, PT>
+{
+    /// Conversion to T returns a reference to the value.
+    ///
+    /// This allows the class to be used in many situations where the value would be legal.
+    ///
+public:
+    operator const T &() const {
+        return this->_value;
+    }
+};
+
+class AP_ParamTF : public AP_ParamTB<float, AP_PARAM_FLOAT>
+{
+public:
+    template<
+        typename U,
+        typename std::enable_if<
+            std::is_convertible<float const&, U>::value &&
+            (
+                (not std::is_floating_point<float>::value) ||
+                std::is_floating_point<U>::value
+            ),
+            int
+        >::type = 0
+    >
+    operator const U() const {
+        return this->_value;
+    }
+
+    template<
+        typename U,
+        typename std::enable_if<
+            std::is_convertible<float const&, U>::value &&
+            (
+                std::is_floating_point<float>::value &&
+                (not std::is_floating_point<U>::value)
+            ),
+            int
+        >::type = 0
+    >
+    explicit operator const U() const {
+        return this->_value;
+    }
+
+    float operator -() const { return -this->_value; }
+};
+
+#define CLS_ROPERATOR_IMPL(O) \
+    static inline float operator O (const AP_ParamTF &a, const AP_ParamTF &b) { return a.get() O b.get(); } \
+    template <typename U> static inline float operator O (U a, const AP_ParamTF &b) { return a O b.get(); } \
+    template <typename U> static inline float operator O (const AP_ParamTF &a, U b) { return a.get() O b; }
+
+#define CLS_ROPERATOR_COMPOUND_IMPL(O) template <typename U> inline U& operator O ## = (U& a, const AP_ParamTF &b) { a O ## = b.get(); return a;}
+
+CLS_ROPERATOR_IMPL(*)
+CLS_ROPERATOR_IMPL(-)
+CLS_ROPERATOR_IMPL(+)
+CLS_ROPERATOR_IMPL(/)
+
+CLS_ROPERATOR_IMPL(>)
+CLS_ROPERATOR_IMPL(<)
+CLS_ROPERATOR_IMPL(<=)
+CLS_ROPERATOR_IMPL(>=)
+
+CLS_ROPERATOR_COMPOUND_IMPL(+)
+CLS_ROPERATOR_COMPOUND_IMPL(*)
+CLS_ROPERATOR_COMPOUND_IMPL(-)
+CLS_ROPERATOR_COMPOUND_IMPL(/)
 
 /// Template class for non-scalar variables.
 ///
@@ -1010,7 +1072,8 @@ protected:
 // _suffix is the suffix on the AP_* type name
 // _pt is the enum ap_var_type type
 #define AP_PARAMDEF(_t, _suffix, _pt)   typedef AP_ParamT<_t, _pt> AP_ ## _suffix;
-AP_PARAMDEF(float, Float, AP_PARAM_FLOAT);    // defines AP_Float
+typedef AP_ParamTF AP_Float;
+// AP_PARAMDEF(float, Float, AP_PARAM_FLOAT);    // defines AP_Float
 AP_PARAMDEF(int8_t, Int8, AP_PARAM_INT8);     // defines AP_Int8
 AP_PARAMDEF(int16_t, Int16, AP_PARAM_INT16);  // defines AP_Int16
 AP_PARAMDEF(int32_t, Int32, AP_PARAM_INT32);  // defines AP_Int32

@@ -37,6 +37,12 @@ typedef Quaternion QuaternionF;
 // define AP_Param type AP_Vector3f
 AP_PARAMDEFV(Vector3f, Vector3f, AP_PARAM_VECTOR3F);
 
+static inline Vector2f operator * (const Vector2f &a, const AP_Float &b) { return a * b.get(); }
+static inline Vector3f operator * (const Vector3f &a, const AP_Float &b) { return a * b.get(); }
+
+static inline Vector2f operator / (const Vector2f &a, const AP_Float &b) { return a / b.get(); }
+static inline Vector3f operator / (const Vector3f &a, const AP_Float &b) { return a / b.get(); }
+
 /*
  * Check whether two floats are equal
  */
