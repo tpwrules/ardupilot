@@ -951,6 +951,25 @@ public:
     }
 };
 
+template<>
+class AP_ParamT<float, AP_PARAM_FLOAT> : public AP_ParamTBase<float, AP_PARAM_FLOAT>
+{
+public:
+    // must return reference due to weirdos who store the result
+    template<bool X = true> // somehow makes it not convertible
+    operator const float &() const {
+        return this->_value;
+    }
+
+    explicit operator int () const {
+        return this->_value;
+    }
+
+    explicit operator double () const {
+        return this->_value;
+    }
+};
+
 /// Template class for non-scalar variables, intended for non-C types.
 ///
 /// Objects of this type have an object value, and can be treated in many ways
@@ -1015,7 +1034,7 @@ protected:
 // _suffix is the suffix on the AP_* type name
 // _pt is the enum ap_var_type type
 #define AP_PARAMDEF(_t, _suffix, _pt)   typedef AP_ParamT<_t, _pt> AP_ ## _suffix;
-AP_PARAMDEF(float, Float, AP_PARAM_FLOAT);    // defines AP_Float
+AP_PARAMDEF(float, Float, AP_PARAM_FLOAT);    // defines AP_Float, requires specialization!
 AP_PARAMDEF(int8_t, Int8, AP_PARAM_INT8);     // defines AP_Int8
 AP_PARAMDEF(int16_t, Int16, AP_PARAM_INT16);  // defines AP_Int16
 AP_PARAMDEF(int32_t, Int32, AP_PARAM_INT32);  // defines AP_Int32
@@ -1026,6 +1045,8 @@ AP_PARAMDEF(int32_t, Int32, AP_PARAM_INT32);  // defines AP_Int32
 // _suffix is the suffix on the AP_* type name
 // _pt is the enum ap_var_type type
 #define AP_PARAMDEFV(_t, _suffix, _pt)   typedef AP_ParamV<_t, _pt> AP_ ## _suffix;
+
+static_assert(not std::is_convertible<AP_Float, int>::value, "illegal conversion");
 
 /*
   template class for enum types based on AP_Int8
