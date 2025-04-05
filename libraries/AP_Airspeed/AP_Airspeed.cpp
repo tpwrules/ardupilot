@@ -568,7 +568,7 @@ void AP_Airspeed::update_calibration(uint8_t i, float raw_pressure)
                 float airspeed_min = fixed_wing_parameters->airspeed_min.get();
                 // use percentage of AIRSPEED_MIN as criteria for max allowed change in offset
                 float max_change = 0.5*(sq((1 + (max_speed_pcnt * 0.01))*airspeed_min) - sq(airspeed_min));
-                if (max_speed_pcnt > 0 && (abs(calibrated_offset-param[i].offset) > max_change) && (abs(param[i].offset) > 0)) {
+                if (max_speed_pcnt > 0 && (abs(calibrated_offset-param[i].offset) > max_change) && (abs((float)param[i].offset) > 0)) {
                     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Arspd %d offset change large;cover and recal", i +1);
                 }
             }
