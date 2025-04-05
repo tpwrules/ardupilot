@@ -1222,8 +1222,8 @@ void AP_CRSF_Telem::calc_parameter() {
         AP_Int16* p = (AP_Int16*)param->_param;
         _telem.ext.param_entry.payload[1] = ParameterType::INT16;
         put_be16_ptr(&_telem.ext.param_entry.payload[idx], p->get());  // value
-        put_be16_ptr(&_telem.ext.param_entry.payload[idx+2], param->_param_min);  // min
-        put_be16_ptr(&_telem.ext.param_entry.payload[idx+4], param->_param_max); // max
+        put_be16_ptr(&_telem.ext.param_entry.payload[idx+2], (int16_t)param->_param_min);  // min
+        put_be16_ptr(&_telem.ext.param_entry.payload[idx+4], (int16_t)param->_param_max); // max
         put_be16_ptr(&_telem.ext.param_entry.payload[idx+6], 0);  // default
         idx += 8;
         break;
