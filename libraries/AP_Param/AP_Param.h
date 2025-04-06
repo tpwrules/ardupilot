@@ -881,7 +881,7 @@ namespace AP {
 /// Template class for scalar variables.
 ///
 /// Objects of this type have a value, though the infrastructure to actually
-/// treat them as a value is delegated to a subclass due to C++ vagaries.
+/// treat them as a value is delegated to a type-specialized subclass.
 ///
 /// @tparam T			The scalar type of the variable
 /// @tparam PT			The AP_PARAM_* type
@@ -962,11 +962,11 @@ public:
     }
 
     explicit operator int () const {
-        return this->_value;
+        return (int)this->_value;
     }
 
     explicit operator double () const {
-        return this->_value;
+        return (double)this->_value;
     }
 
     // clang!!!
