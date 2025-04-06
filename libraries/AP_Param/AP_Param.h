@@ -956,7 +956,7 @@ class AP_ParamT<float, AP_PARAM_FLOAT> : public AP_ParamTBase<float, AP_PARAM_FL
 {
 public:
     // must return reference due to weirdos who store the result
-    template<bool X = true> // somehow makes it not convertible
+    template<bool X = true> // somehow makes it not convertible [over.ics.user] clause 3
     operator const float &() const {
         return this->_value;
     }
@@ -968,6 +968,23 @@ public:
     explicit operator double () const {
         return this->_value;
     }
+
+    // clang!!!
+    float operator -() const { return -this->_value; }
+
+#define CLS_SELF_IMPL(R, OP) \
+    R operator OP (const AP_ParamT<float, AP_PARAM_FLOAT>& other) const { return this->_value OP other._value; }
+
+    CLS_SELF_IMPL(float, +);
+    CLS_SELF_IMPL(float, -);
+    CLS_SELF_IMPL(float, *);
+    CLS_SELF_IMPL(float, /);
+    CLS_SELF_IMPL(bool, >);
+    CLS_SELF_IMPL(bool, <);
+    CLS_SELF_IMPL(bool, <=);
+    CLS_SELF_IMPL(bool, >=);
+
+#undef CLS_SELF_IMPL
 };
 
 /// Template class for non-scalar variables, intended for non-C types.
