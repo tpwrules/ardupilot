@@ -25,7 +25,7 @@ uint32_t stm32_flash_getpagesize(uint32_t page);
 uint32_t stm32_flash_getnumpages(void);
 bool stm32_flash_erasepage(uint32_t page);
 bool stm32_flash_write(uint32_t addr, const void *buf, uint32_t count);
-bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count);
+bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count, bool verify);
 void stm32_flash_keep_unlocked(bool set);
 bool stm32_flash_ispageerased(uint32_t page);
 void stm32_flash_protect_flash(bool bootloader, bool protect);

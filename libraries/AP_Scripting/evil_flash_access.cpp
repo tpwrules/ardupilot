@@ -75,7 +75,22 @@ int efa_program(lua_State *L) {
     size_t len;
     const char* data = luaL_checklstring(L, 2, &len);
 
-    bool success = stm32_flash_write_h7_cowboy(addr, data, len);
+    bool success = stm32_flash_write_h7_cowboy(addr, data, len, false);
+
+    lua_pushboolean(L, success);
+
+    return 1;
+}
+
+int efa_programv(lua_State *L) {
+    binding_argcheck(L, 2);
+
+    const uint32_t addr = (uint32_t)luaL_checkinteger(L, 1);
+
+    size_t len;
+    const char* data = luaL_checklstring(L, 2, &len);
+
+    bool success = stm32_flash_write_h7_cowboy(addr, data, len, true);
 
     lua_pushboolean(L, success);
 

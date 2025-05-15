@@ -724,7 +724,7 @@ failed:
     return success;
 }
 
-bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count)
+bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count, bool verify)
 {
     uint8_t *b = (uint8_t *)buf;
 
@@ -754,7 +754,13 @@ bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count)
                 success = false;
                 goto failed;
             }
-            // assume it wrote correctly
+            // check contents
+            if (verify) {
+                if (memcmp((void*)addr, b, 32) != 0) {
+                    success = false;
+                    goto failed;
+                }
+            }
         }
 
         addr += 32;

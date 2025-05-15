@@ -1125,3 +1125,4 @@ singleton efa manual write32 efa_write32 0 2
 singleton efa manual erase efa_erase 1 1
 singleton efa manual erased efa_erased 1 1
 singleton efa manual program efa_program 1 2
+singleton efa manual programv efa_program 1 2
