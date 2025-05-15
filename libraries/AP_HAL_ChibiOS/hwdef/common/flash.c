@@ -724,6 +724,49 @@ failed:
     return success;
 }
 
+bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count)
+{
+    uint8_t *b = (uint8_t *)buf;
+
+    if ((count & 0x1F) || (addr & 0x1F)) {
+        // only allow 256 bit aligned writes
+        return false;
+    }
+
+    stm32_flash_unlock();
+    bool success = true;
+
+    while (count >= 32) {
+        if (true) { // always write even if match
+            // don't bother checking for erasure
+
+#if STM32_FLASH_DISABLE_ISR
+            syssts_t sts = chSysGetStatusAndLockX();
+#endif
+
+            bool ok = stm32h7_flash_write32(addr, b);
+
+#if STM32_FLASH_DISABLE_ISR
+            chSysRestoreStatusX(sts);
+#endif
+
+            if (!ok) {
+                success = false;
+                goto failed;
+            }
+            // assume it wrote correctly
+        }
+
+        addr += 32;
+        count -= 32;
+        b += 32;
+    }
+
+failed:
+    stm32_flash_lock();
+    return success;
+}
+
 #endif // STM32H7
 
 #if defined(STM32F4) || defined(STM32F7)
