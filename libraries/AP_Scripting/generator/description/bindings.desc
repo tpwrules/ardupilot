@@ -1111,3 +1111,17 @@ userdata DroneCAN_Handle method subscribe boolean
 userdata DroneCAN_Handle manual check_message DroneCAN_Handle::check_message 0 4
 userdata DroneCAN_Handle manual_operator __gc DroneCAN_Handle::__gc
 
+include AP_Scripting/evil_flash_access.h
+
+-- global manual efa_read32 efa_read32 1 1
+-- global manual efa_write32 efa_write32 0 2
+-- global manual efa_erase efa_erase 1 1
+-- global manual efa_erased efa_erased 1 1
+-- global manual efa_program efa_program 1 2
+
+singleton efa literal
+singleton efa manual read32 efa_read32 1 1
+singleton efa manual write32 efa_write32 0 2
+singleton efa manual erase efa_erase 1 1
+singleton efa manual erased efa_erased 1 1
+singleton efa manual program efa_program 1 2
