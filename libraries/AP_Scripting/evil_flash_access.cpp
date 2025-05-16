@@ -97,4 +97,56 @@ int efa_programv(lua_State *L) {
     return 1;
 }
 
+int efa_errors(lua_State *L) {
+    binding_argcheck(L, 1);
+
+    const uint32_t addr = (uint32_t)luaL_checkinteger(L, 1);
+
+    // turn off interrupts
+    syssts_t sts = chSysGetStatusAndLockX();
+
+    // invalidate address to be sure we read it
+    SCB_InvalidateDCache_by_Addr((uint32_t*)(void*)addr, 32);
+
+    // clear both bank's error bits (we don't care to think about which bank)
+    FLASH->CCR1 = FLASH_SR_SNECCERR | FLASH_SR_DBECCERR;
+    FLASH->CCR2 = FLASH_SR_SNECCERR | FLASH_SR_DBECCERR;
+
+    // disable all fault handlers (i.e. run at fault handler level)
+    __set_FAULTMASK(1);
+    SCB->CCR |= SCB_CCR_BFHFNMIGN_Msk; // ignore bus errors at fault level
+    __DSB();
+    __ISB();
+
+    *(volatile uint32_t*)addr; // do the dangerous read
+
+    // undo our machinations
+    SCB->CCR &= ~SCB_CCR_BFHFNMIGN_Msk;
+    __set_FAULTMASK(0);
+    __DSB();
+    __ISB();
+
+    // grab status bits
+    uint32_t sr = (FLASH->SR1 & (FLASH_SR_SNECCERR | FLASH_SR_DBECCERR))
+                | (FLASH->SR2 & (FLASH_SR_SNECCERR | FLASH_SR_DBECCERR));
+
+    // be nice and clear again
+    FLASH->CCR1 = FLASH_SR_SNECCERR | FLASH_SR_DBECCERR;
+    FLASH->CCR2 = FLASH_SR_SNECCERR | FLASH_SR_DBECCERR;
+
+    // restore interrupt state
+    chSysRestoreStatusX(sts);
+
+    uint8_t count = 0;
+    if (sr & FLASH_SR_DBECCERR) {
+        count = 2;
+    } else if (sr & FLASH_SR_SNECCERR) {
+        count = 1;
+    }
+
+    lua_pushinteger(L, count);
+
+    return 1;
+}
+
 #endif  // AP_SCRIPTING_ENABLED

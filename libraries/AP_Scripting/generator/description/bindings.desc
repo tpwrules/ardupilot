@@ -1126,3 +1126,4 @@ singleton efa manual erase efa_erase 1 1
 singleton efa manual erased efa_erased 1 1
 singleton efa manual program efa_program 1 2
 singleton efa manual programv efa_programv 1 2
+singleton efa manual errors efa_errors 1 1
