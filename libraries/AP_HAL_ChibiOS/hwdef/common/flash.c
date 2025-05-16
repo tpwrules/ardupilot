@@ -737,8 +737,9 @@ bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count,
     bool success = true;
 
     while (count >= 32) {
-        if (true) { // always write even if match
-            // don't bother checking for erasure
+        const uint8_t *b2 = (const uint8_t *)addr;
+        // if the bytes already match then skip this chunk
+        if (memcmp(b, b2, 32) != 0) {
 
 #if STM32_FLASH_DISABLE_ISR
             syssts_t sts = chSysGetStatusAndLockX();
