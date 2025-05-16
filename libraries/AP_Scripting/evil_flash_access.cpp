@@ -19,8 +19,8 @@ int efa_read32(lua_State *L) {
 
     const uint32_t addr = (uint32_t)luaL_checkinteger(L, 1);
 
-    __DSB();
-    __ISB();
+    // ensure word is not in cache
+    SCB_CleanInvalidateDCache_by_Addr((uint32_t*)(addr & 0xFFFFFFE0), 32);
 
     const uint32_t val = *((volatile uint32_t*)addr);
 
@@ -37,8 +37,8 @@ int efa_write32(lua_State *L) {
 
     *((volatile uint32_t*)addr) = val;
 
-    __DSB();
-    __ISB();
+    // ensure write makes it out of cache
+    SCB_CleanDCache_by_Addr((uint32_t*)(addr & 0xFFFFFFE0), 32);
 
     return 0;
 }
