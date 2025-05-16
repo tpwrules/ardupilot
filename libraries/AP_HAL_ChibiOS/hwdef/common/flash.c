@@ -756,6 +756,7 @@ bool stm32_flash_write_h7_cowboy(uint32_t addr, const void *buf, uint32_t count,
                 goto failed;
             }
             // check contents
+            SCB_InvalidateDCache_by_Addr((void*)addr, 32);
             if (verify) {
                 if (memcmp((void*)addr, b, 32) != 0) {
                     success = false;
