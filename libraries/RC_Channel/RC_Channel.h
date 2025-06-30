@@ -296,9 +296,10 @@ public:
         SCRIPTING_6 =        305,
         SCRIPTING_7 =        306,
         SCRIPTING_8 =        307,
+        KILL_SCRIPTING =     308,   // emergency scripting disablement
 
         // this must be higher than any aux function above
-        AUX_FUNCTION_MAX =   308,
+        AUX_FUNCTION_MAX =   309,
     };
 
     // auxiliary switch handling (n.b.: we store this as 2-bits!):
