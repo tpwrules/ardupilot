@@ -1,0 +1,4 @@
+
+include ../TBS_LUCID_H7/hwdef.dat
+
+USE_BOOTLOADER_FROM_BOARD TBS_LUCID_H7
