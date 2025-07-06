@@ -186,11 +186,10 @@ void AC_PID::set_notch_sample_rate(float sample_rate)
 #endif
 }
 
-//  update_all - set target and measured inputs to PID controller and calculate outputs
-//  target and error are filtered
-//  the derivative is then calculated and filtered
-//  the integral is then updated based on the setting of the limit flag
-float AC_PID::update_all(float target, float measurement, float dt, bool limit, float boost)
+// Computes the PID output using a target and measurement input.
+// Applies filters to the target and error, calculates the derivative and updates the integrator.
+// If `limit` is true, the integrator is allowed to shrink but not grow.
+float AC_PID::update_all(float target, float measurement, float dt, bool limit, float boost, float i_scale)
 {
     // don't process inf or NaN
     if (!isfinite(target) || !isfinite(measurement)) {
@@ -253,11 +252,13 @@ float AC_PID::update_all(float target, float measurement, float dt, bool limit, 
         }
     }
 
-    // update I term
-    update_i(dt, limit);
+    // Integrate error (with wind-up protection if limit is active)
+    // If limit is active, allow I-term to shrink but not grow
+    update_i(dt, limit, i_scale);
 
     float P_out = (_error * _kp);
     float D_out = (_derivative * _kd);
+    float I_out = _integrator;
 
     // calculate slew limit modifier for P+D
     _pid_info.Dmod = _slew_limiter.modifier((_pid_info.P + _pid_info.D) * _slew_limit_scale, dt);
@@ -287,10 +288,15 @@ float AC_PID::update_all(float target, float measurement, float dt, bool limit, 
     _pid_info.error = _error;
     _pid_info.P = P_out;
     _pid_info.D = D_out;
+    _pid_info.I = I_out;
+    _pid_info.limit = limit;
+    // Set I set flag for logging and clear
+    _pid_info.I_term_set = _flags._I_set;
+    _flags._I_set = false;
     _pid_info.FF = _target * _kff;
     _pid_info.DFF = _target_derivative * _kdff;
 
-    return P_out + D_out + _integrator;
+    return P_out + D_out + I_out;
 }
 
 //  update_error - set error input to PID controller and calculate outputs
@@ -319,25 +325,19 @@ float AC_PID::update_error(float error, float dt, bool limit)
     return output;
 }
 
-//  update_i - update the integral
-//  If the limit flag is set the integral is only allowed to shrink
-void AC_PID::update_i(float dt, bool limit)
+// Updates the integrator based on current error and dt.
+// If `limit` is true, the integrator is only allowed to shrink to avoid wind-up.
+void AC_PID::update_i(float dt, bool limit, float i_scale)
 {
     if (!is_zero(_ki) && is_positive(dt)) {
         // Ensure that integrator can only be reduced if the output is saturated
         if (!limit || ((is_positive(_integrator) && is_negative(_error)) || (is_negative(_integrator) && is_positive(_error)))) {
-            _integrator += ((float)_error * _ki) * dt;
+            _integrator += ((float)_error * _ki) * i_scale * dt;
             _integrator = constrain_float(_integrator, -_kimax, _kimax);
         }
     } else {
         _integrator = 0.0f;
     }
-    _pid_info.I = _integrator;
-    _pid_info.limit = limit;
-
-    // Set I set flag for logging and clear
-    _pid_info.I_term_set = _flags._I_set;
-    _flags._I_set = false;
 }
 
 float AC_PID::get_p() const

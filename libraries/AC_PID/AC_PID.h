@@ -58,11 +58,10 @@ public:
 
     CLASS_NO_COPY(AC_PID);
 
-    //  update_all - set target and measured inputs to PID controller and calculate outputs
-    //  target and error are filtered
-    //  the derivative is then calculated and filtered
-    //  the integral is then updated based on the setting of the limit flag
-    float update_all(float target, float measurement, float dt, bool limit = false, float boost = 1.0f);
+    // Computes the PID output using a target and measurement input.
+    // Applies filters to the target and error, calculates the derivative and updates the integrator.
+    // If `limit` is true, the integrator is allowed to shrink but not grow.
+    float update_all(float target, float measurement, float dt, bool limit = false, float pd_scale = 1.0f, float i_scale = 1.0f);
 
     //  update_error - set error input to PID controller and calculate outputs
     //  target is set to zero and error is set and filtered
@@ -149,9 +148,9 @@ public:
 
 protected:
 
-    //  update_i - update the integral
-    //  if the limit flag is set the integral is only allowed to shrink
-    void update_i(float dt, bool limit);
+    // Updates the integrator based on current error and dt.
+    // If `limit` is true, the integrator is only allowed to shrink to avoid wind-up.
+    void update_i(float dt, bool limit, float i_scale = 1.0f);
 
     // parameters
     AP_Float _kp;
