@@ -1485,8 +1485,16 @@ void RCOutput::dshot_send_groups(rcout_timer_t cycle_start_us, rcout_timer_t tim
 
     for (auto &group : pwm_group_list) {
         bool pulse_sent = false;
+        if (group.has_dshot_failed() && hal.util->get_soft_armed()) {
+            INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+            _dshot_current_command.cycle = 0;
+            _dshot_command_queue.clear();
+            dma_cancel(group);
+            dshot_send(group, cycle_start_us, timeout_period_us);
+            pulse_sent = true;
+        }
         // send a dshot command
-        if (group.can_send_dshot_pulse()
+        else if (group.can_send_dshot_pulse()
             && dshot_command_is_active(group)) {
             command_sent = dshot_send_command(group, _dshot_current_command.command, _dshot_current_command.chan);
             pulse_sent = true;

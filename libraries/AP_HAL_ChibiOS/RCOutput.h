@@ -335,6 +335,8 @@ private:
     static const uint16_t GCR_TELEMETRY_BUFFER_LEN = GCR_TELEMETRY_BIT_LEN*sizeof(dmar_uint_t);
     static const uint16_t INVALID_ERPM = 0xffffU;
     static const uint16_t ZERO_ERPM = 0x0fffU;
+    // we should be sending pulses at at least 500Hz (conservatively) with some variability
+    static const uint32_t DMAR_SEND_TIMEOUT_US = 4000;  // 250Hz absolute minimum
 
     struct pwm_group {
         // only advanced timers can do high clocks needed for more than 400Hz
@@ -456,6 +458,11 @@ private:
         // are we safe to send another pulse?
         bool can_send_dshot_pulse() const {
           return is_dshot_protocol(current_mode) && AP_HAL::micros64() - last_dmar_send_us > (dshot_pulse_time_us + 50);
+        }
+
+        // check if we have stopped sending
+        bool has_dshot_failed() const {
+          return can_send_dshot_pulse() && AP_HAL::micros64() - last_dmar_send_us > DMAR_SEND_TIMEOUT_US;
         }
 
         // return whether the group channel is both enabled in the group and for output
