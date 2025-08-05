@@ -678,7 +678,7 @@ uint16_t AP_ESC_Telem::merge_edt2_stress(uint16_t old_stress, uint16_t new_stres
 
 #endif // AP_EXTENDED_DSHOT_TELEM_V2_ENABLED
 
-void AP_ESC_Telem::update()
+void AP_ESC_Telem::write_log()
 {
 #if HAL_LOGGING_ENABLED
     AP_Logger *logger = AP_Logger::get_singleton();
@@ -807,7 +807,10 @@ void AP_ESC_Telem::update()
         }
     }
 #endif  // HAL_LOGGING_ENABLED
+}
 
+void AP_ESC_Telem::update()
+{
     const uint32_t now_us = AP_HAL::micros();
     for (uint8_t i = 0; i < ESC_TELEM_MAX_ESCS; i++) {
         // Invalidate RPM data if not received for too long
