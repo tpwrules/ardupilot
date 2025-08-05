@@ -1,4 +1,10 @@
 
 include ../TBS_LUCID_H7/hwdef.dat
 
+# disable DroneCAN to allow optimized build
+define HAL_ENABLE_DRONECAN_DRIVERS 0
+
+# optimize for fast rates
+env OPTIMIZE -O2
+
 USE_BOOTLOADER_FROM_BOARD TBS_LUCID_H7
