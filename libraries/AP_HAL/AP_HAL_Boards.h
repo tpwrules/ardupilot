@@ -394,3 +394,7 @@
 #endif
 
 #define HAL_GPIO_LED_OFF (!HAL_GPIO_LED_ON)
+
+#ifndef AP_CPU_IDLE_STATS_ENABLED
+#define AP_CPU_IDLE_STATS_ENABLED 0
+#endif
