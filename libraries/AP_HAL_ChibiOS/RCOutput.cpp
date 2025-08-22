@@ -1350,9 +1350,6 @@ void RCOutput::cork(void)
  */
 void RCOutput::push(void)
 {
-    if (!corked) {
-        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
-    }
     corked = false;
     memcpy(period, period_corked, sizeof(period));
     push_local();
@@ -1486,7 +1483,6 @@ void RCOutput::dshot_send_groups(rcout_timer_t cycle_start_us, rcout_timer_t tim
     for (auto &group : pwm_group_list) {
         bool pulse_sent = false;
         if (group.has_dshot_failed() && hal.util->get_soft_armed()) {
-            INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
             _dshot_current_command.cycle = 0;
             _dshot_command_queue.clear();
             dma_cancel(group);
