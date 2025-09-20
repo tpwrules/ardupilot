@@ -185,6 +185,7 @@ private:
     AP_Int8  axis_bitmask;      // axes to be tuned
     AP_Float aggressiveness;    // aircraft response aggressiveness to be tuned
     AP_Float min_d;             // minimum rate d gain allowed during tuning
+    AP_Float gain_backoff;      // Fraction by which tuned P and D gains are reduced after each AutoTune stage (rate loop, then angle loop) to provide additional stability margin
     bool     ignore_next;       // ignore the results of the next test when true
     float    target_angle;      // target angle for the test
     float    target_rate;       // target rate for the test
