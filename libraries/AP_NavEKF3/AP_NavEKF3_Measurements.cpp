@@ -48,7 +48,7 @@ void NavEKF3_core::readRangeFinder(void)
             if (sensor->status() == AP_DAL_RangeFinder::Status::Good) {
                 // get the current range measurement
                 range_distance = sensor->distance_cm() * 0.01f;
-            } else if (onGround && sensor->status() == AP_DAL_RangeFinder::Status::OutOfRangeLow) {
+            } else if (sensor->status() == AP_DAL_RangeFinder::Status::OutOfRangeLow) {
                 // use ground clearance range if on ground
                 range_distance = rngOnGnd;
             } else {
