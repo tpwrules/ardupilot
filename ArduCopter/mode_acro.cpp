@@ -60,6 +60,10 @@ void ModeAcro::run()
 
     // run attitude controller
     if (g2.acro_options.get() & uint8_t(AcroOptions::RATE_LOOP_ONLY)) {
+        // scale I by the value of angle P to mimic betaflight tunes
+        attitude_control->scale_I_to_angle_P();
+
+        // send rate commands to attitude controller (RATE_LOOP_ONLY bypasses full attitude stabilization)
         attitude_control->input_rate_bf_roll_pitch_yaw_2(target_roll, target_pitch, target_yaw);
     } else {
         attitude_control->input_rate_bf_roll_pitch_yaw(target_roll, target_pitch, target_yaw);
