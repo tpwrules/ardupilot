@@ -10,6 +10,7 @@
 
 static uint32_t motor_test_start_ms;        // system time the motor test began
 static uint32_t motor_test_timeout_ms;      // test will timeout this many milliseconds after the motor_test_start_ms
+static uint32_t last_motor_message_ms;
 static uint8_t motor_test_seq;              // motor sequence number of motor being tested
 static uint8_t motor_test_count;            // number of motors to test
 static uint8_t motor_test_throttle_type;    // motor throttle type (0=throttle percentage, 1=PWM, 2=pilot throttle channel pass-through)
@@ -85,6 +86,13 @@ void Copter::motor_test_output()
         if (pwm >= RC_Channel::RC_MIN_LIMIT_PWM && pwm <= RC_Channel::RC_MAX_LIMIT_PWM) {
             // turn on motor to specified pwm value
             motors->output_test_seq(motor_test_seq, pwm);
+            float rpm, error_rate;
+            if (AP::esc_telem().get_raw_rpm(motor_test_seq, rpm, error_rate)
+                && error_rate > 1.0f
+                && AP_HAL::millis() - last_motor_message_ms > 1000) {
+                gcs().send_text(MAV_SEVERITY_WARNING,"Motor test error rate %f at %f rpm", error_rate, rpm);
+                last_motor_message_ms = AP_HAL::millis();
+            }
         } else {
             motor_test_stop();
         }
