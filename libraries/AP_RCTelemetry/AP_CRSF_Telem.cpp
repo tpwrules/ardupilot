@@ -1816,7 +1816,10 @@ bool AP_CRSF_Telem::send_write_response(uint8_t length, const char* data)
         switch (spw.type) {
         case ScriptedParameterEvents::PARAMETER_READ:
             // respond with parameter entry updated with the new data
-            spw.param->data = (const char*)hal.util->std_realloc((char*)spw.param->data, length);
+            if (length > spw.param->length) {
+                // we don't care about old data so old length of 0 is fine
+                spw.param->data = (const char*)hal.util->std_realloc((char*)spw.param->data, length);
+            }
             if (spw.param->data == nullptr) {
                 return false;
             }
@@ -1825,8 +1828,8 @@ bool AP_CRSF_Telem::send_write_response(uint8_t length, const char* data)
             send_response(spw);
             break;
         case ScriptedParameterEvents::PARAMETER_WRITE:
-            memcpy((char*)_param_request.payload.payload, data, length);
-            _param_request.payload.payload_length = length;
+            memcpy((char*)_param_request.payload.payload, data, MIN(length, sizeof(_param_request.payload.payload)));
+            _param_request.payload.payload_length = MIN(length, sizeof(_param_request.payload.payload));
             send_response(spw);
             break;
         }
