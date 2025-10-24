@@ -101,7 +101,7 @@ void JETIESC_Telem::process_pulse(uint32_t width_s0, uint32_t width_s1)
 {
     uint8_t b;
     if (ss.process_pulse(width_s0, width_s1, b)) {
-        can_printf("%c\n", b);
+        // can_printf("%c\n", b);
         process_byte(b);
     }
 }
