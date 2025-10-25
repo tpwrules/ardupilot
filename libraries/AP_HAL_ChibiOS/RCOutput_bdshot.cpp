@@ -359,6 +359,7 @@ void RCOutput::bdshot_receive_pulses_DMAR(pwm_group* group)
 
     // Configure DMA
     dmaStreamSetPeripheral(ic_dma, &(group->pwm_drv->tim->DMAR));
+    stm32_cacheBufferInvalidate(group->dma_buffer, GCR_TELEMETRY_BUFFER_LEN);
     dmaStreamSetMemory0(ic_dma, group->dma_buffer);
     dmaStreamSetTransactionSize(ic_dma, GCR_TELEMETRY_BIT_LEN);
 #if STM32_DMA_ADVANCED
@@ -515,7 +516,7 @@ __RAMFUNC__ void RCOutput::bdshot_finish_dshot_gcr_transaction(virtual_timer_t* 
     group->bdshot.dma_tx_size = MIN(uint16_t(GCR_TELEMETRY_BIT_LEN),
         GCR_TELEMETRY_BIT_LEN - dmaStreamGetTransactionSize(dma));
 
-    stm32_cacheBufferInvalidate(group->dma_buffer, group->bdshot.dma_tx_size);
+    stm32_cacheBufferFlush(group->dma_buffer, GCR_TELEMETRY_BUFFER_LEN);
     memcpy(group->bdshot.dma_buffer_copy, group->dma_buffer, sizeof(dmar_uint_t) * group->bdshot.dma_tx_size);
 
 #ifdef HAL_TIM_UP_SHARED
