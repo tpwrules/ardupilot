@@ -943,6 +943,7 @@ singleton AP_Logger rename logger
 singleton AP_Logger manual write AP_Logger_Write 6 0
 singleton AP_Logger method log_file_content void string
 singleton AP_Logger method log_file_content depends HAL_LOGGER_FILE_CONTENTS_ENABLED
+singleton AP_Logger method EraseAll void
 
 singleton i2c manual get_device lua_get_i2c_device 4 1
 
