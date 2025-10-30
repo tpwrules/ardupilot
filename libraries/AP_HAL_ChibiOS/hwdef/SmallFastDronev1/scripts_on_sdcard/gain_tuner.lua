@@ -50,8 +50,11 @@ local utility_params = {
     {param = assert(Parameter('INS_LOG_BAT_LGIN'), "Failed to find INS_LOG_BAT_LGIN")},
     {param = assert(Parameter('INS_LOG_BAT_MASK'), "Failed to find INS_LOG_BAT_MASK")},
     {param = assert(Parameter('INS_LOG_BAT_OPT'), "Failed to find INS_LOG_BAT_OPT")},
-    -- Fast Attitude Logging
+    -- Logging
     {param = assert(Parameter('LOG_BITMASK'), "Failed to find LOG_BITMASK")},
+    {param = assert(Parameter('LOG_REPLAY'), "Failed to find LOG_REPLAY")},
+    {param = assert(Parameter('LOG_DISARMED'), "Failed to find LOG_DISARMED")},
+    {param = assert(Parameter('LOG_FILE_DSRMROT'), "Failed to find LOG_FILE_DSRMROT")},
     -- Autotune
     {param = assert(Parameter('AUTOTUNE_AGGR'), "Failed to find AUTOTUNE_AGGR")},
     {param = assert(Parameter('AUTOTUNE_AXES'), "Failed to find AUTOTUNE_AXES")},
@@ -62,6 +65,7 @@ local utility_params = {
 -- Table to store the original parameter values on script startup (or after save) for the revert/baseline function
 local original_gains = {}
 local original_utility_values = {}
+local origin_log_bitmask = {}
 
 -- Populate the original value tables for all managed parameters.
 local function populate_original_values()
@@ -278,14 +282,24 @@ local function toggle_fast_attitude_logging(enable)
     end
 end
 
--- Erases all logs from the flight controller
-local function erase_logs()
-    -- MAV_CMD_PREFLIGHT_STORAGE (245), param2 = 2 for erase logs
-    local result = gcs:run_command_int(245, {p2=2})
-    if result == 0 then -- MAV_RESULT_ACCEPTED
-        gcs:send_text(MAV_SEVERITY.INFO, "Log erase command sent.")
-    else
-        gcs:send_text(MAV_SEVERITY.ERROR, "Log erase command failed.")
+-- Callback for the replay Log on/off selection
+local function on_replay_log_change(selection)
+    local log_replay = Parameter('LOG_REPLAY')
+    local log_disarmed = Parameter('LOG_DISARMED')
+    local log_bitmask = Parameter('LOG_BITMASK')
+    local log_rot = Parameter('LOG_FILE_DSRMROT')
+    if selection == "On" then
+        log_disarmed:set(2)
+        log_rot:set(0)
+        log_bitmask:set(log_bitmask:get() % 2)
+        log_replay:set(1)
+        gcs:send_text(MAV_SEVERITY.INFO, "Replay logging enabled.")
+    elseif selection == "Off" then
+        log_disarmed:set(0)
+        log_rot:set(1)
+        log_bitmask:set((log_bitmask:get() % 2) + 1)
+        log_replay:set(0)
+        gcs:send_text(MAV_SEVERITY.INFO, "Replay logging disabled.")
     end
 end
 
@@ -469,16 +483,25 @@ local menu_definition = {
                     default = 1, -- 1-based index for "Off"
                     callback = on_fast_att_log_change
                 },
+                {
+                    type = 'SELECTION',
+                    name = "Replay Logging",
+                    options = {"Off", "On"},
+                    default = 1, -- 1-based index for "Off"
+                    callback = on_replay_log_change
+                },
                 {type = 'INFO', name = "Warning", info = "Erase is final"},
                 {
                     type = 'COMMAND',
                     name = "Erase All Logs",
-                    info = "Hold to Erase",
+                    info = "Confirm Erase?",
                     callback = function(command_action)
                         if command_action == CRSF_COMMAND_STATUS.START then
-                            erase_logs()
+                            logger:EraseAll()
+                            gcs:send_text(MAV_SEVERITY.INFO, "Logs erased!")
+                            return CRSF_COMMAND_STATUS.READY, "Erased!"
                         end
-                        return CRSF_COMMAND_STATUS.READY, "Hold to Erase"
+                        return CRSF_COMMAND_STATUS.READY, "Confirm Erase?"
                     end
                 },
             }
