@@ -1,76 +1,59 @@
-# ArduPilot Project
+# Small Fast Drone Project
 
-<a href="https://ardupilot.org/discord"><img src="https://img.shields.io/discord/674039678562861068.svg" alt="Discord">
+The canonical ArduPilot README can be found [here](https://github.com/ArduPilot/ardupilot/blob/master/README.md)
 
-[![Test Copter](https://github.com/ArduPilot/ardupilot/workflows/test%20copter/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_copter.yml) [![Test Plane](https://github.com/ArduPilot/ardupilot/workflows/test%20plane/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_plane.yml) [![Test Rover](https://github.com/ArduPilot/ardupilot/workflows/test%20rover/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_rover.yml) [![Test Sub](https://github.com/ArduPilot/ardupilot/workflows/test%20sub/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_sub.yml) [![Test Tracker](https://github.com/ArduPilot/ardupilot/workflows/test%20tracker/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_tracker.yml)
+[![Test Copter](https://github.com/ArduPilot/ardupilot/workflows/test%20copter/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_copter.yml)
 
-[![Test AP_Periph](https://github.com/ArduPilot/ardupilot/workflows/test%20ap_periph/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_sitl_periph.yml) [![Test Chibios](https://github.com/ArduPilot/ardupilot/workflows/test%20chibios/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_chibios.yml) [![Test Linux SBC](https://github.com/ArduPilot/ardupilot/workflows/test%20Linux%20SBC/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_linux_sbc.yml) [![Test Replay](https://github.com/ArduPilot/ardupilot/workflows/test%20replay/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_replay.yml)
-
-[![Test Unit Tests](https://github.com/ArduPilot/ardupilot/workflows/test%20unit%20tests%20and%20sitl%20building/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_unit_tests.yml)[![test size](https://github.com/ArduPilot/ardupilot/actions/workflows/test_size.yml/badge.svg)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_size.yml)
-
-[![Test Environment Setup](https://github.com/ArduPilot/ardupilot/actions/workflows/test_environment.yml/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_environment.yml)
-
-[![Cygwin Build](https://github.com/ArduPilot/ardupilot/actions/workflows/cygwin_build.yml/badge.svg)](https://github.com/ArduPilot/ardupilot/actions/workflows/cygwin_build.yml) [![Macos Build](https://github.com/ArduPilot/ardupilot/actions/workflows/macos_build.yml/badge.svg)](https://github.com/ArduPilot/ardupilot/actions/workflows/macos_build.yml)
-
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/5331/badge.svg)](https://scan.coverity.com/projects/ardupilot-ardupilot)
-
-[![Test Coverage](https://github.com/ArduPilot/ardupilot/actions/workflows/test_coverage.yml/badge.svg?branch=master)](https://github.com/ArduPilot/ardupilot/actions/workflows/test_coverage.yml)
-
-[![Autotest Status](https://autotest.ardupilot.org/autotest-badge.svg)](https://autotest.ardupilot.org/)
+![SFD](sfd_logo2.png)
 
 ArduPilot is the most advanced, full-featured, and reliable open source autopilot software available.
 It has been under development since 2010 by a diverse team of professional engineers, computer scientists, and community contributors.
-Our autopilot software is capable of controlling almost any vehicle system imaginable, from conventional airplanes, quad planes, multi-rotors, and helicopters to rovers, boats, balance bots, and even submarines.
-It is continually being expanded to provide support for new emerging vehicle types.
+The autopilot software is capable of controlling almost any vehicle system imaginable, from conventional airplanes, quad planes, multi-rotors, and helicopters to rovers, boats, balance bots, and even submarines. It is continually being expanded to provide support for new emerging vehicle types.
+
+However, the need to continously support all vehicle types constrains both flash usage and feature velocity. That might be fine if you are flying a 2 ton, $100k vehicle and absolute reliability is paramount - but for smaller vehicles these constraints can be prohibitive to forward progress - and yet at the same time you also don't want to be flying the master branch the whole time. For a while I have be maintaining branches off the latest stable branch of ArduPilot that also contain features - usually features that I have developed - that are either only available in master or as PRs. These features are particularly geared to the needs to smaller, faster copters - but are also can be applicable to any size of vehicle. Maintaining these
+branches has become somewhat onerous, so I have instead started this new repo giving me greater flexibility in how I managed progress. The intent is:
+
+- To be a derivative of the latest stable ArduPilot release (This branch is for 4.6.x)
+- For all included features to be open source and eventually be available in either the main ArduPilot repository or one of the fossuav repositories
+- For all additional features to have been flown
+- For all additional features to be documented
+
+## Included Features ##
+
+The branch is based on ArduPilot 4.6.3. It also includes the following PRs and features:
+
+- Fast rates (https://github.com/ArduPilot/ardupilot/pull/27029, https://github.com/ArduPilot/ardupilot/pull/27839, https://github.com/ArduPilot/ardupilot/pull/27841, https://github.com/ArduPilot/ardupilot/pull/29112, https://github.com/ArduPilot/ardupilot/pull/29749, https://github.com/ArduPilot/ardupilot/pull/30155, https://github.com/ArduPilot/ardupilot/pull/31395, https://github.com/ArduPilot/ardupilot/pull/27839, https://github.com/ArduPilot/ardupilot/pull/27842, https://github.com/ArduPilot/ardupilot/pull/27996, https://github.com/ArduPilot/ardupilot/pull/28984, https://github.com/ArduPilot/ardupilot/pull/30980)
+[![Fast rates](https://img.youtube.com/vi/B8Dp2jwDamU/0.jpg)](https://www.youtube.com/playlist?list=PL_O9QDs-WAVyBpf7URQQgCmNQwv_aTcMf)
+- Littlefs (https://github.com/ArduPilot/ardupilot/pull/28724, https://github.com/ArduPilot/ardupilot/pull/31227, https://github.com/ArduPilot/ardupilot/pull/29120, https://github.com/ArduPilot/ardupilot/pull/29295, https://github.com/ArduPilot/ardupilot/pull/29307, https://github.com/ArduPilot/ardupilot/pull/29308, https://github.com/ArduPilot/ardupilot/pull/29353, https://github.com/ArduPilot/ardupilot/pull/29354, https://github.com/ArduPilot/ardupilot/pull/29413, https://github.com/ArduPilot/ardupilot/pull/29472, https://github.com/ArduPilot/ardupilot/pull/31236, https://github.com/ArduPilot/ardupilot/pull/31244)
+- Fence margins (https://github.com/ArduPilot/ardupilot/pull/28840, https://github.com/ArduPilot/ardupilot/pull/29744, https://github.com/ArduPilot/ardupilot/pull/30238, https://github.com/ArduPilot/ardupilot/pull/30240, https://github.com/ArduPilot/ardupilot/pull/31009, https://github.com/ArduPilot/ardupilot/pull/31012, https://github.com/ArduPilot/ardupilot/pull/31018, https://github.com/ArduPilot/ardupilot/pull/2581, https://github.com/ArduPilot/ardupilot/pull/31005)
+[![Fence margins](https://img.youtube.com/vi/w21SylNejas/0.jpg)](www.youtube.com/watch?v=w21SylNejas)
+- Dshot Cancel Failure (https://github.com/ArduPilot/ardupilot/pull/29409, a887bca91c85f5ae9a2e41a051e978fd917e2f2d)
+- Harmonic Notches (https://github.com/ArduPilot/ardupilot/pull/30246, https://github.com/ArduPilot/ardupilot/pull/30994)
+- Rate Acro (https://github.com/ArduPilot/ardupilot/pull/31171, https://github.com/ArduPilot/ardupilot/pull/31226)
+- Flying Indoors (https://github.com/ArduPilot/ardupilot/pull/31155, https://github.com/ArduPilot/ardupilot/pull/31177, https://github.com/ArduPilot/ardupilot/pull/30490, https://github.com/ArduPilot/ardupilot/pull/29847)
+- CRSF Scripted Menus (https://github.com/ArduPilot/ardupilot/pull/29368, https://github.com/ArduPilot/ardupilot/pull/31314)
+[![CRSF Scripted Menus](https://img.youtube.com/vi/x5lsXGpmC9g/0.jpg)](www.youtube.com/watch?v=x5lsXGpmC9g)
+- Motortest Errors (https://github.com/ArduPilot/ardupilot/pull/31274)
+- CRSF Binding (https://github.com/ArduPilot/ardupilot/pull/31396)
+- Idle-hook CPU Monitoring (https://github.com/ArduPilot/ardupilot/pull/30913)
+- VTX Max Power (https://github.com/ArduPilot/ardupilot/pull/31500)
+- Logging (https://github.com/ArduPilot/ardupilot/pull/30841, https://github.com/ArduPilot/ardupilot/pull/30842)
+- CRSF Menus (https://github.com/fossuav/smallfastdrone)
+
+[![CRSF Menus](https://img.youtube.com/vi/u8P8tj-KxXs/0.jpg)](www.youtube.com/watch?v=u8P8tj-KxXs)
+
+
+## SmallFastDronev1 Target ##
+
+There is a hardware target called SmallFastDronev1 that is designed to work optimally with this fork. The hardware itself is actually the TBS_LUCID_H7 v2, so if you get one of these flight controllers you can flash it with the target if you choose.
 
 ## The ArduPilot project is made up of: ##
 
 - ArduCopter: [code](https://github.com/ArduPilot/ardupilot/tree/master/ArduCopter), [wiki](https://ardupilot.org/copter/index.html)
 
-- ArduPlane: [code](https://github.com/ArduPilot/ardupilot/tree/master/ArduPlane), [wiki](https://ardupilot.org/plane/index.html)
-
-- Rover: [code](https://github.com/ArduPilot/ardupilot/tree/master/Rover), [wiki](https://ardupilot.org/rover/index.html)
-
-- ArduSub : [code](https://github.com/ArduPilot/ardupilot/tree/master/ArduSub), [wiki](http://ardusub.com/)
-
-- Antenna Tracker : [code](https://github.com/ArduPilot/ardupilot/tree/master/AntennaTracker), [wiki](https://ardupilot.org/antennatracker/index.html)
-
-## User Support & Discussion Forums ##
-
-- Support Forum: <https://discuss.ardupilot.org/>
-
-- Community Site: <https://ardupilot.org>
-
 ## Developer Information ##
 
-- Github repository: <https://github.com/ArduPilot/ardupilot>
-
-- Main developer wiki: <https://ardupilot.org/dev/>
-
-- Developer discussion: <https://discuss.ardupilot.org>
-
-- Developer chat: <https://discord.com/channels/ardupilot>
-
-## Top Contributors ##
-
-- [Flight code contributors](https://github.com/ArduPilot/ardupilot/graphs/contributors)
-- [Wiki contributors](https://github.com/ArduPilot/ardupilot_wiki/graphs/contributors)
-- [Most active support forum users](https://discuss.ardupilot.org/u?order=post_count&period=quarterly)
-- [Partners who contribute financially](https://ardupilot.org/about/Partners)
-
-## How To Get Involved ##
-
-- The ArduPilot project is open source and we encourage participation and code contributions: [guidelines for contributors to the ardupilot codebase](https://ardupilot.org/dev/docs/contributing.html)
-
-- We have an active group of Beta Testers to help us improve our code: [release procedures](https://ardupilot.org/dev/docs/release-procedures.html)
-
-- Desired Enhancements and Bugs can be posted to the [issues list](https://github.com/ArduPilot/ardupilot/issues).
-
-- Help other users with log analysis in the [support forums](https://discuss.ardupilot.org/)
-
-- Improve the wiki and chat with other [wiki editors on Discord #documentation](https://discord.com/channels/ardupilot)
-
-- Contact the developers on one of the [communication channels](https://ardupilot.org/copter/docs/common-contact-us.html)
+- Github repository: <https://github.com/fossuav/smallfastdrone>
 
 ## License ##
 
@@ -80,81 +63,3 @@ License, version 3.
 - [Overview of license](https://ardupilot.org/dev/docs/license-gplv3.html)
 
 - [Full Text](https://github.com/ArduPilot/ardupilot/blob/master/COPYING.txt)
-
-## Maintainers ##
-
-ArduPilot is comprised of several parts, vehicles and boards. The list below
-contains the people that regularly contribute to the project and are responsible
-for reviewing patches on their specific area.
-
-- [Andrew Tridgell](https://github.com/tridge):
-  - ***Vehicle***: Plane, AntennaTracker
-  - ***Board***: Pixhawk, Pixhawk2, PixRacer
-- [Francisco Ferreira](https://github.com/oxinarf):
-  - ***Bug Master***
-- [Grant Morphett](https://github.com/gmorph):
-  - ***Vehicle***: Rover
-- [Willian Galvani](https://github.com/williangalvani):
-  - ***Vehicle***: Sub
-  - ***Board***: Navigator
-- [Michael du Breuil](https://github.com/WickedShell):
-  - ***Subsystem***: Batteries
-  - ***Subsystem***: GPS
-  - ***Subsystem***: Scripting
-- [Peter Barker](https://github.com/peterbarker):
-  - ***Subsystem***: DataFlash, Tools
-- [Randy Mackay](https://github.com/rmackay9):
-  - ***Vehicle***: Copter, Rover, AntennaTracker
-- [Siddharth Purohit](https://github.com/bugobliterator):
-  - ***Subsystem***: CAN, Compass
-  - ***Board***: Cube*
-- [Tom Pittenger](https://github.com/magicrub):
-  - ***Vehicle***: Plane
-- [Bill Geyer](https://github.com/bnsgeyer):
-  - ***Vehicle***: TradHeli
-- [Emile Castelnuovo](https://github.com/emilecastelnuovo):
-  - ***Board***: VRBrain
-- [Georgii Staroselskii](https://github.com/staroselskii):
-  - ***Board***: NavIO
-- [Gustavo José de Sousa](https://github.com/guludo):
-  - ***Subsystem***: Build system
-- [Julien Beraud](https://github.com/jberaud):
-  - ***Board***: Bebop & Bebop 2
-- [Leonard Hall](https://github.com/lthall):
-  - ***Subsystem***: Copter attitude control and navigation
-- [Matt Lawrence](https://github.com/Pedals2Paddles):
-  - ***Vehicle***: 3DR Solo & Solo based vehicles
-- [Matthias Badaire](https://github.com/badzz):
-  - ***Subsystem***: FRSky
-- [Mirko Denecke](https://github.com/mirkix):
-  - ***Board***: BBBmini, BeagleBone Blue, PocketPilot
-- [Paul Riseborough](https://github.com/priseborough):
-  - ***Subsystem***: AP_NavEKF2
-  - ***Subsystem***: AP_NavEKF3
-- [Víctor Mayoral Vilches](https://github.com/vmayoral):
-  - ***Board***: PXF, Erle-Brain 2, PXFmini
-- [Amilcar Lucas](https://github.com/amilcarlucas):
-  - ***Subsystem***: Marvelmind
-- [Samuel Tabor](https://github.com/samuelctabor):
-  - ***Subsystem***: Soaring/Gliding
-- [Henry Wurzburg](https://github.com/Hwurzburg):
-  - ***Subsystem***: OSD
-  - ***Site***: Wiki
-- [Peter Hall](https://github.com/IamPete1):
-  - ***Vehicle***: Tailsitters
-  - ***Vehicle***: Sailboat
-  - ***Subsystem***: Scripting
-- [Andy Piper](https://github.com/andyp1per):
-  - ***Subsystem***: Crossfire
-  - ***Subsystem***: ESC
-  - ***Subsystem***: OSD
-  - ***Subsystem***: SmartAudio
-- [Alessandro Apostoli ](https://github.com/yaapu):
-  - ***Subsystem***: Telemetry
-  - ***Subsystem***: OSD
-- [Rishabh Singh ](https://github.com/rishabsingh3003):
-  - ***Subsystem***: Avoidance/Proximity
-- [David Bussenschutt ](https://github.com/davidbuzz):
-  - ***Subsystem***: ESP32,AP_HAL_ESP32
-- [Charles Villard ](https://github.com/Silvanosky):
-  - ***Subsystem***: ESP32,AP_HAL_ESP32
