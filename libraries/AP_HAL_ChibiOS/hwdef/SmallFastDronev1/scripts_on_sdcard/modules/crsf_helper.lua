@@ -135,6 +135,7 @@ end
 -- ####################
 -- # EVENT HANDLING
 -- ####################
+local idle_backoff = 0
 
 -- This function runs as an independent loop for each script.
 -- It uses the peek/pop API to safely coexist with other menu scripts.
@@ -159,7 +160,12 @@ local function event_loop()
 
     -- If the queue is empty, reschedule with the (now dynamic) idle delay.
     if count == 0 then
-        return event_loop, IDLE_DELAY
+        idle_backoff = idle_backoff + 1
+        if idle_backoff > (1000/ACTIVE_DELAY) then -- no events in a second so switch to idle
+            return event_loop, IDLE_DELAY
+        else
+            return event_loop, ACTIVE_DELAY
+        end
     end
 
     -- ## 2. Check if the event belongs to this script's menu ##
@@ -168,6 +174,8 @@ local function event_loop()
         -- This event is not for us. Yield and let another script's loop handle it.
         return event_loop, ACTIVE_DELAY -- Use active delay as UI might be busy with other script
     end
+
+    idle_backoff = 0    -- no longer idling
 
     -- ## 3. Pop the event from the queue ##
     -- This is critical: pop the event before handling it.
