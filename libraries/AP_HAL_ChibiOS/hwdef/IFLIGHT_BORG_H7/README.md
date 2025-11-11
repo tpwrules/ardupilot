@@ -5,16 +5,16 @@ The Borg H7 is a flight controller produced by [iFlight](https://shop.iflight-rc
 ## Features
 
  - MCU - STM32H743 32-bit processor running at 480 MHz
- - Gyro: ICM42688
- - 32Gb SDCard for logging
+ - Gyro: 2x ICM42688-P
+ - 256Mb built-in SDCard for logging
  - BEC output: 5V 2.5A,  switch controlled 12v 2A
  - Barometer: DPS310 / SPL06
  - OSD: AT7456E
- - 8x UARTs
+ - 7x UARTs
  - 13x PWM Outputs (12 Motor Output, 1 LED)
  - Battery input voltage: 2S-8S
  - 2x I2C for external compass, airspeed, etc.
- - CAN port
+ - 2x CAN port
 
 ## Pinout
 
@@ -40,9 +40,9 @@ The UARTs are marked Rn and Tn in the pinouts. The Rn pin is the receive pin for
 |SERIAL2|TX2/RX2|UART2 (RX, DMA-enabled)|
 |SERIAL3|TX3/RX3|UART3 (DMA-enabled)|
 |SERIAL4|TX4/RX4|UART4 (GPS, DMA-enabled)|
-|SERIAL5|RX5 (ESC Connector)|UART6 (ESC Telemetry)|
-|SERIAL6|TX7/RX7|UART7|
-|SERIAL7|TX8/RX8|UART8|
+|SERIAL6|RX6 (ESC Connector)|UART6 (ESC Telemetry)|
+|SERIAL7|TX7/RX7|UART7|
+|SERIAL8|TX8/RX8|UART8|
 
 
 ## RC Input
@@ -86,9 +86,9 @@ The board has a builtin voltage sensor and a current sensor input tied to its 4-
 The correct battery setting parameters are:
 
  - `BATT_MONITOR` = 4
- - `BATT_VOLT_PIN` = 11
+ - `BATT_VOLT_PIN` = 10
  - `BATT_VOLT_MULT` = 11
- - `BATT_CURR_PIN` = 10
+ - `BATT_CURR_PIN` = 11
  - `BATT_CURR_MULT` = 50
 
 These are set by default in the firmware and shouldn't need to be adjusted.
