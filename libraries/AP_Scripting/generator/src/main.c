@@ -315,7 +315,7 @@ void handle_header(void) {
   node->name = (char *)allocate(strlen(name) + 1);
   strcpy(node->name, name);
 
-  // add depedns
+  // add depends
   char * key_word = next_token();
   char *depends = NULL;
   if (key_word != NULL) {
@@ -392,6 +392,7 @@ struct userdata_field {
   int line; // line declared on
   unsigned int access_flags;
   char * array_len; // literal array length
+  char *dependency;
 };
 
 enum userdata_flags {
@@ -735,11 +736,20 @@ void handle_userdata_field(struct userdata *data) {
   }
   if (field != NULL) {
     char *token = next_token();
-    if (strcmp(token, keyword_rename) != 0) {
+    if (strcmp(token, keyword_rename) == 0) {
+      char *rename = next_token();
+      string_copy(&(field->rename), rename);
+
+    } else if (strcmp(token, keyword_depends) == 0) {
+      char *dependency = strtok(NULL, "");
+      if (dependency == NULL) {
+        error(ERROR_USERDATA, "Expected dependency string for %s %s on line", data->name, field_name, state.line_num);
+      }
+      string_copy(&(field->dependency), dependency);
+
+    } else {
       error(ERROR_USERDATA, "Field %s already exists in userdata %s (declared on %d)", field_name, data->name, field->line);
     }
-    char *rename = next_token();
-    string_copy(&(field->rename), rename);
     return;
   }
 
@@ -1799,9 +1809,11 @@ void emit_field(const struct userdata_field *field, const char* object_name, con
 }
 
 void emit_userdata_field(const struct userdata *data, const struct userdata_field *field) {
+  start_dependency(source, field->dependency);
   fprintf(source, "static int %s_%s(lua_State *L) {\n", data->sanatized_name, field->name);
   fprintf(source, "    %s *ud = check_%s(L, 1);\n", data->name, data->sanatized_name);
   emit_field(field, "ud", "->");
+  end_dependency(source, field->dependency);
 }
 
 void emit_userdata_fields() {
@@ -1821,6 +1833,8 @@ void emit_userdata_fields() {
 }
 
 void emit_singleton_field(const struct userdata *data, const struct userdata_field *field) {
+  start_dependency(source, field->dependency);
+
   fprintf(source, "static int %s_%s(lua_State *L) {\n", data->sanatized_name, field->name);
 
   // emit comments on expected arg/type
@@ -1833,6 +1847,7 @@ void emit_singleton_field(const struct userdata *data, const struct userdata_fie
 
   emit_field(field, ud_name, ud_access);
 
+  end_dependency(source, field->dependency);
 }
 
 void emit_singleton_fields() {
@@ -1852,9 +1867,11 @@ void emit_singleton_fields() {
 }
 
 void emit_ap_object_field(const struct userdata *data, const struct userdata_field *field) {
+  start_dependency(source, field->dependency);
   fprintf(source, "static int %s_%s(lua_State *L) {\n", data->sanatized_name, field->name);
   fprintf(source, "    %s *ud = *check_%s(L, 1);\n", data->name, data->sanatized_name);
   emit_field(field, "ud", "->");
+  end_dependency(source, field->dependency);
 }
 
 void emit_ap_object_fields() {
@@ -2442,7 +2459,9 @@ void emit_index(struct userdata *head) {
 
     struct userdata_field *field = node->fields;
     while(field) {
+      start_dependency(source, field->dependency);
       fprintf(source, "    {\"%s\", %s_%s},\n", field->rename ? field->rename : field->name, node->sanatized_name, field->name);
+      end_dependency(source, field->dependency);
       field = field->next;
     }
 
