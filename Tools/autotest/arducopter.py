@@ -3921,7 +3921,8 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         })
 
         self.context_push()
-        self.set_parameter("ARMING_CHECK", 1 << 3)
+        # enable only GPS arming check during ordering test
+        self.set_parameter("ARMING_SKIPCHK", ~(1 << 3))
         self.context_collect('STATUSTEXT')
 
         self.reboot_sitl()
@@ -3995,7 +3996,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
                 self.context_stop_collecting('STATUSTEXT')
         self.progress("############################### All GPS Order Cases Tests Passed")
         self.progress("############################### Test Healthy Prearm check")
-        self.set_parameter("ARMING_CHECK", 1)
+        self.set_parameter("ARMING_SKIPCHK", 0)
         self.stop_sup_program(instance=0)
         self.start_sup_program(instance=0, args="-M")
         self.stop_sup_program(instance=1)
@@ -8974,11 +8975,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         # turn off GPS arming checks.  This may be considered a
         # bug that we need to do this.
-        old_arming_check = int(self.get_parameter("ARMING_CHECK"))
-        if old_arming_check == 1:
-            old_arming_check = 1 ^ 25 - 1
-        new_arming_check = int(old_arming_check) & ~(1 << 3)
-        self.set_parameter("ARMING_CHECK", new_arming_check)
+        self.set_parameter("ARMING_SKIPCHK", (1 << 3))
 
         self.reboot_sitl()
 
@@ -10711,7 +10708,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.wait_gps_disable(position_vertical=True)
 
         # turn off arming checks (mandatory arming checks will still be run)
-        self.set_parameter("ARMING_CHECK", 0)
+        self.set_parameter("ARMING_SKIPCHK", -1)
 
         # delay 12 sec to allow EKF to lose altitude estimate
         self.delay_sim_time(12)
