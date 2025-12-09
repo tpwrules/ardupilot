@@ -19,18 +19,14 @@ int lua_new_Parameter(lua_State *L) {
         name = luaL_checkstring(L, 1);
     }
 
-    // This chunk is the same as the auto generated constructor
-    void *ud = lua_newuserdata(L, sizeof(Parameter));
-    new (ud) Parameter();
-    luaL_getmetatable(L, "Parameter");
-    lua_setmetatable(L, -2);
+    auto *p = new_Parameter(L);
 
     if (args == 0) {
         // no arguments, nothing to do
         return 1;
     }
 
-    if (!static_cast<Parameter*>(ud)->init(name)) {
+    if (!p->init(name)) {
         return luaL_error(L, "No parameter: %s", name);
     }
 
