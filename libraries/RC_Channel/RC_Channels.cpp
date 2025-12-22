@@ -34,6 +34,10 @@ extern const AP_HAL::HAL& hal;
 
 #include "RC_Channel.h"
 
+#if HAL_GYROFFT_ENABLED
+#include <AP_GyroFFT/AP_GyroFFT.h>
+#endif
+
 /*
   channels group object constructor
  */
@@ -177,6 +181,11 @@ void RC_Channels::read_aux_all()
         // guarantee that we log when a switch changes
         AP::logger().Write_RCIN();
     }
+#endif
+
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+    // Update FFT visualization pan/zoom from slider channels
+    update_fft_vis_from_aux();
 #endif
 }
 
@@ -340,6 +349,45 @@ RC_Channel &RC_Channels::get_yaw_channel()
 };
 #endif  // AP_RCMAPPER_ENABLED
 
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+// Update FFT visualization parameters from RC aux slider channels
+void RC_Channels::update_fft_vis_from_aux()
+{
+    AP_GyroFFT *fft = AP::fft();
+    if (fft == nullptr || !fft->visualization_enabled()) {
+        return;
+    }
+
+    // Get total analysis bins (full spectrum from 0 to Nyquist)
+    const uint16_t total_bins = fft->get_analysis_bins();
+
+    // Handle pan control (FFT_VIS_PAN)
+    RC_Channel *pan_chan = find_channel_for_option(RC_Channel::AUX_FUNC::FFT_VIS_PAN);
+    if (pan_chan != nullptr) {
+        // Map slider -1..1 to start bin 0..max
+        const float norm_in = pan_chan->norm_input_ignore_trim();
+        const uint16_t max_start = total_bins > 1 ? total_bins - 1 : 0;
+        const uint8_t start_bin = static_cast<uint8_t>(constrain_float((norm_in + 1.0f) * 0.5f * max_start, 0, max_start));
+        fft->set_vis_start_bin(start_bin);
+    } else {
+        // Default: start at bin 0 (DC / lowest frequency)
+        fft->set_vis_start_bin(0);
+    }
+
+    // Handle zoom control (FFT_VIS_ZOOM)
+    // zoom_level 1 = zoomed out (full spectrum), 8 = zoomed in (1/8 spectrum)
+    RC_Channel *zoom_chan = find_channel_for_option(RC_Channel::AUX_FUNC::FFT_VIS_ZOOM);
+    if (zoom_chan != nullptr) {
+        // Map slider -1..1 to zoom_level 1..8 (left = full spectrum, right = zoomed in)
+        const float norm_in = zoom_chan->norm_input_ignore_trim();
+        const uint8_t zoom_level = static_cast<uint8_t>(constrain_float((norm_in + 1.0f) * 3.5f + 1.0f, 1, 8));
+        fft->set_vis_bin_width(zoom_level);
+    } else {
+        // Default: zoom_level 1 = show full spectrum
+        fft->set_vis_bin_width(1);
+    }
+}
+#endif
 
 // singleton instance
 RC_Channels *RC_Channels::_singleton;

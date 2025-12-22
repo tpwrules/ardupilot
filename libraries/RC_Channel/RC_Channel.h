@@ -11,6 +11,8 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_Common/Bitmask.h>
 
+#include <AP_RCTelemetry/AP_RCTelemetry_config.h>
+
 #define NUM_RC_CHANNELS 16
 
 /// @class	RC_Channel
@@ -264,6 +266,10 @@ public:
                                   // saved for 4.7-dev feature in-flight AHRS autotrim
                                   //saved for 4.7-dev feature Fixed Wing AUTOLAND Mode
         SYSTEMID =           184,  // system ID as an aux switch
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+        FFT_VIS_PAN =        186,  // FFT visualization pan (slider controls start bin)
+        FFT_VIS_ZOOM =       187,  // FFT visualization zoom (slider controls bin width)
+#endif
 
         // inputs from 200 will eventually used to replace RCMAP
         ROLL =               201, // roll input
@@ -516,6 +522,9 @@ public:
 
     void init_aux_all();
     void read_aux_all();
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+    void update_fft_vis_from_aux();
+#endif
 
     // mode switch handling
     void reset_mode_switch();

@@ -777,6 +777,12 @@ void RC_Channel::init_aux_function(const AUX_FUNC ch_option, const AuxSwitchPos 
         run_aux_function(ch_option, ch_flag, AuxFuncTriggerSource::INIT);
         break;
 #endif
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+    case AUX_FUNC::FFT_VIS_PAN:
+    case AUX_FUNC::FFT_VIS_ZOOM:
+        // slider-based, no init action needed
+        break;
+#endif
     default:
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Failed to init: RC%u_OPTION: %u\n",
                         (unsigned)(this->ch_in+1), (unsigned)ch_option);
@@ -895,6 +901,10 @@ const RC_Channel::LookupTable RC_Channel::lookuptable[] = {
 #endif
 #if HAL_MOUNT_ENABLED
     { AUX_FUNC::MOUNT_LRF_ENABLE, "Mount LRF Enable"},
+#endif
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+    { AUX_FUNC::FFT_VIS_PAN, "FFT Vis Pan"},
+    { AUX_FUNC::FFT_VIS_ZOOM, "FFT Vis Zoom"},
 #endif
 };
 
@@ -1888,6 +1898,13 @@ bool RC_Channel::do_aux_function(const AUX_FUNC ch_option, const AuxSwitchPos ch
     case AUX_FUNC::LOWEHEISER_THROTTLE:
     case AUX_FUNC::LOWEHEISER_STARTER:
         // monitored by the library itself
+        break;
+#endif
+
+#if HAL_GYROFFT_ENABLED && HAL_CRSF_TELEM_ENABLED
+    case AUX_FUNC::FFT_VIS_PAN:
+    case AUX_FUNC::FFT_VIS_ZOOM:
+        // slider-based, handled by update_fft_vis_from_aux()
         break;
 #endif
 
