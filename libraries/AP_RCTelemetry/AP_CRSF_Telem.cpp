@@ -100,6 +100,10 @@
 
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
+#if HAL_GYROFFT_ENABLED
+#include <AP_GyroFFT/AP_GyroFFT.h>
+#endif
+
 //#define CRSF_DEBUG
 #ifdef CRSF_DEBUG
 # define debug(fmt, args...)	hal.console->printf("CRSF: " fmt "\n", ##args)
@@ -167,6 +171,8 @@ void AP_CRSF_Telem::setup_wfq_scheduler(void)
     add_scheduler_entry(5, 500);    // version ping      2Hz (only active at startup)
     add_scheduler_entry(5, 100);    // device ping      10Hz (only active during TX loss, also see CRSF_RX_TIMEOUT)
     disable_scheduler_entry(DEVICE_PING);
+    add_scheduler_entry(250, 1000); // FFT data         1Hz (configured by setup_custom_telemetry)
+    disable_scheduler_entry(FFT_DATA);
 }
 
 void AP_CRSF_Telem::setup_custom_telemetry()
@@ -208,6 +214,14 @@ void AP_CRSF_Telem::setup_custom_telemetry()
     // setup the crossfire scheduler for custom telemetry
     set_scheduler_entry(FLIGHT_MODE, 1200, 2000);   // 0.5Hz
     set_scheduler_entry(HEARTBEAT, 2000, 5000);     // 0.2Hz
+#if HAL_GYROFFT_ENABLED
+    // Schedule FFT data if visualization is enabled
+    if (AP::fft() && AP::fft()->visualization_enabled()) {
+        set_scheduler_entry(FFT_DATA, 250, 1000); // 4Hz (250ms period)
+    } else {
+        disable_scheduler_entry(FFT_DATA);
+    }
+#endif
 
     _telem_rf_mode = get_rf_mode();
     // setup custom telemetry for current rf_mode
@@ -225,32 +239,64 @@ void AP_CRSF_Telem::update_custom_telemetry_rates(AP_RCProtocol_CRSF::RFMode rf_
         return;
     }
 
+#if HAL_GYROFFT_ENABLED
+    const bool fft_vis = AP::fft() && AP::fft()->visualization_enabled();
+#else
+    const bool fft_vis = false;
+#endif
+
     if (is_high_speed_telemetry(rf_mode)) {
-        // standard telemetry for high data rates
-        set_scheduler_entry(BATTERY, 1000, 1000);       // 1Hz
-        set_scheduler_entry(ATTITUDE, 1000, 1000);      // 1Hz
-        set_scheduler_entry(BARO_VARIO, 1000, 1000);    // 1Hz
-        set_scheduler_entry(VARIO, 1000, 1000);         // 1Hz
-        // custom telemetry for high data rates
-        set_scheduler_entry(GPS, 550, 500);            // 2.0Hz
-        set_scheduler_entry(PASSTHROUGH, 100, 100);    // 8Hz
-        set_scheduler_entry(STATUS_TEXT, 200, 750);    // 1.5Hz
-    } else {
-        // standard telemetry for low data rates
-        set_scheduler_entry(BATTERY, 1000, 2000);       // 0.5Hz
-        set_scheduler_entry(ATTITUDE, 1000, 3000);      // 0.33Hz
-        set_scheduler_entry(BARO_VARIO, 1000, 3000);    // 0.33Hz
-        set_scheduler_entry(VARIO, 1000, 3000);         // 0.33Hz
-        if (is_elrs()) {
-            // ELRS custom telemetry for low data rates
-            set_scheduler_entry(GPS, 550, 1000);            // 1.0Hz
-            set_scheduler_entry(PASSTHROUGH, 350, 500);     // 2.0Hz
-            set_scheduler_entry(STATUS_TEXT, 500, 2000);    // 0.5Hz
+        if (fft_vis) {
+            // FFT visualization mode: prioritize FFT updates, reduce other telemetry
+            set_scheduler_entry(BATTERY, 1000, 2000);       // 0.5Hz (reduced)
+            set_scheduler_entry(ATTITUDE, 1000, 2000);      // 0.5Hz (reduced)
+            set_scheduler_entry(BARO_VARIO, 1000, 2000);    // 0.5Hz (reduced)
+            set_scheduler_entry(VARIO, 1000, 2000);         // 0.5Hz (reduced)
+            set_scheduler_entry(GPS, 550, 1000);            // 1.0Hz (reduced)
+            set_scheduler_entry(PASSTHROUGH, 250, 500);     // 4Hz (reduced)
+            set_scheduler_entry(STATUS_TEXT, 500, 1500);    // 0.7Hz (reduced)
+#if HAL_GYROFFT_ENABLED
+            set_scheduler_entry(FFT_DATA, 100, 100);        // 10Hz
+#endif
         } else {
-            // CRSF custom telemetry for low data rates
-            set_scheduler_entry(GPS, 550, 1000);              // 1.0Hz
-            set_scheduler_entry(PASSTHROUGH, 500, 3000);      // 0.3Hz
-            set_scheduler_entry(STATUS_TEXT, 600, 2000);      // 0.5Hz
+            // standard telemetry for high data rates
+            set_scheduler_entry(BATTERY, 1000, 1000);       // 1Hz
+            set_scheduler_entry(ATTITUDE, 1000, 1000);      // 1Hz
+            set_scheduler_entry(BARO_VARIO, 1000, 1000);    // 1Hz
+            set_scheduler_entry(VARIO, 1000, 1000);         // 1Hz
+            set_scheduler_entry(GPS, 550, 500);             // 2.0Hz
+            set_scheduler_entry(PASSTHROUGH, 100, 100);     // 8Hz
+            set_scheduler_entry(STATUS_TEXT, 200, 750);     // 1.5Hz
+        }
+    } else {
+        // low data rate mode
+        if (fft_vis) {
+            // FFT visualization: prioritize FFT, reduce other telemetry
+            set_scheduler_entry(BATTERY, 1000, 3000);       // 0.33Hz (reduced)
+            set_scheduler_entry(ATTITUDE, 1000, 4000);      // 0.25Hz (reduced)
+            set_scheduler_entry(BARO_VARIO, 1000, 4000);    // 0.25Hz (reduced)
+            set_scheduler_entry(VARIO, 1000, 4000);         // 0.25Hz (reduced)
+            set_scheduler_entry(GPS, 550, 2000);            // 0.5Hz (reduced)
+            set_scheduler_entry(PASSTHROUGH, 500, 1000);    // 1Hz (reduced)
+            set_scheduler_entry(STATUS_TEXT, 1000, 3000);   // 0.33Hz (reduced)
+#if HAL_GYROFFT_ENABLED
+            set_scheduler_entry(FFT_DATA, 200, 500);        // 5Hz
+#endif
+        } else {
+            // standard telemetry for low data rates
+            set_scheduler_entry(BATTERY, 1000, 2000);       // 0.5Hz
+            set_scheduler_entry(ATTITUDE, 1000, 3000);      // 0.33Hz
+            set_scheduler_entry(BARO_VARIO, 1000, 3000);    // 0.33Hz
+            set_scheduler_entry(VARIO, 1000, 3000);         // 0.33Hz
+            if (is_elrs()) {
+                set_scheduler_entry(GPS, 550, 1000);            // 1.0Hz
+                set_scheduler_entry(PASSTHROUGH, 350, 500);     // 2.0Hz
+                set_scheduler_entry(STATUS_TEXT, 500, 2000);    // 0.5Hz
+            } else {
+                set_scheduler_entry(GPS, 550, 1000);            // 1.0Hz
+                set_scheduler_entry(PASSTHROUGH, 500, 3000);    // 0.3Hz
+                set_scheduler_entry(STATUS_TEXT, 600, 2000);    // 0.5Hz
+            }
         }
     }
 }
@@ -408,6 +454,9 @@ void AP_CRSF_Telem::disable_tx_entries()
     disable_scheduler_entry(FLIGHT_MODE);
     disable_scheduler_entry(PASSTHROUGH);
     disable_scheduler_entry(STATUS_TEXT);
+#if HAL_GYROFFT_ENABLED
+    disable_scheduler_entry(FFT_DATA);
+#endif
     // GENERAL_COMMAND and PARAMETERS will only be sent under very specific circumstances
 }
 
@@ -424,6 +473,11 @@ void AP_CRSF_Telem::enable_tx_entries()
     enable_scheduler_entry(FLIGHT_MODE);
     enable_scheduler_entry(PASSTHROUGH);
     enable_scheduler_entry(STATUS_TEXT);
+#if HAL_GYROFFT_ENABLED
+    if (AP::fft() && AP::fft()->visualization_enabled()) {
+        enable_scheduler_entry(FFT_DATA);
+    }
+#endif
 
     update_custom_telemetry_rates(_telem_rf_mode);
 }
@@ -519,6 +573,8 @@ bool AP_CRSF_Telem::is_packet_ready(uint8_t idx, bool queue_empty)
         return true; // always send heartbeat if enabled
     case DEVICE_PING:
         return !_crsf_version.pending;  // only send pings if version has been negotiated
+    case FFT_DATA:
+        return _enable_telemetry;
     default:
         return _enable_telemetry;
     }
@@ -600,6 +656,11 @@ void AP_CRSF_Telem::process_packet(uint8_t idx)
         case DEVICE_PING:
             calc_device_ping(AP_RCProtocol_CRSF::CRSF_ADDRESS_CRSF_RECEIVER);
             break;
+#if HAL_GYROFFT_ENABLED
+        case FFT_DATA:
+            calc_fft();
+            break;
+#endif
         default:
             break;
     }
@@ -2322,6 +2383,33 @@ namespace AP {
         return AP_CRSF_Telem::get_singleton();
     }
 };
+
+#if HAL_GYROFFT_ENABLED
+void AP_CRSF_Telem::calc_fft()
+{
+    AP_GyroFFT *fft = AP::fft();
+    if (fft == nullptr) {
+        return;
+    }
+
+    // Get visualization bins directly into frame buffer
+    AP_GyroFFT::VisualizationData info;
+    if (!fft->get_visualization_bins(_telem.bcast.fft.data, sizeof(_telem.bcast.fft.data), info)) {
+        return;
+    }
+
+    // Populate frame header from FFT visualization data
+    _telem.bcast.fft.start_bin = info.start_bin;
+    _telem.bcast.fft.bin_width = info.bin_width;
+    _telem.bcast.fft.bin_resolution = info.bin_resolution;
+    _telem.bcast.fft.max_freq_log2 = info.max_freq_log2;
+    _telem.bcast.fft.count = info.count;
+
+    _telem_size = 6 + info.count;  // Header (6 bytes) + data
+    _telem_type = AP_RCProtocol_CRSF::CRSF_FRAMETYPE_AP_FFT;
+    _telem_pending = true;
+}
+#endif
 
 #endif  // HAL_CRSF_TELEM_ENABLED
 

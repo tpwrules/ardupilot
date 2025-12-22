@@ -109,6 +109,17 @@ public:
         char flight_mode[16]; // ( Null-terminated string )
     };
 
+    // FFT Visualization Frame
+    // Streams real-time PSD spectrum data for EdgeTX visualization
+    struct PACKED FFTFrame {
+        uint8_t start_bin;       // Starting FFT bin index (0-255)
+        uint8_t bin_width;       // Source bins per display bucket (1-16)
+        uint16_t bin_resolution; // centiHz per FFT bin (divide by 100 for Hz)
+        uint8_t max_freq_log2;   // log2(max_freq)*16, decode: 2^(val/16)
+        uint8_t count;           // Number of valid data bytes (1-54)
+        uint8_t data[54];        // PSD energy bins (dB scaled, 0-255)
+    };
+
     // CRSF_FRAMETYPE_COMMAND
     struct PACKED CommandFrame {
         uint8_t destination;
@@ -328,6 +339,7 @@ public:
         AttitudeFrame attitude;
         FlightModeFrame flightmode;
         APCustomTelemFrame custom_telem;
+        FFTFrame fft;
     };
 
     union PACKED ExtendedFrame {
@@ -377,6 +389,7 @@ private:
         GENERAL_COMMAND,
         VERSION_PING,
         DEVICE_PING,
+        FFT_DATA,
         NUM_SENSORS
     };
 
@@ -402,6 +415,9 @@ private:
     void calc_command_response();
     void calc_bind();
     void calc_parameter();
+#if HAL_GYROFFT_ENABLED
+    void calc_fft();
+#endif
 #if AP_CRSF_SCRIPTING_ENABLED
     bool calc_scripted_parameter();
 #endif
