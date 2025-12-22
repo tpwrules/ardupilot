@@ -27,6 +27,7 @@
 #include <AP_InertialSensor/AP_InertialSensor.h>
 #include <Filter/LowPassFilter.h>
 #include <Filter/FilterWithBuffer.h>
+#include <AP_RCTelemetry/AP_RCTelemetry_config.h>
 
 #define DEBUG_FFT   0
 
@@ -64,6 +65,8 @@ public:
     bool start_update_thread();
     // is the subsystem enabled
     bool enabled() const { return _enable; }
+    // is visualization enabled (for CRSF telemetry)
+    bool visualization_enabled() const { return _enable && _vis_mask.get() != 0; }
 
     // check at startup that standard frequencies can be detected
     bool pre_arm_check(char *failure_msg, const uint8_t failure_msg_len);
@@ -91,6 +94,25 @@ public:
     float get_weighted_noise_center_freq_hz() const;
     // all detected peak frequencies weighted by energy
     uint8_t get_weighted_noise_center_frequencies_hz(uint8_t num_freqs, float* freqs) const;
+
+#if HAL_CRSF_TELEM_ENABLED
+    // Visualization data returned alongside bins
+    struct VisualizationData {
+        uint8_t start_bin;       // Starting FFT bin index
+        uint8_t bin_width;       // Source bins per display bucket
+        uint16_t bin_resolution; // centiHz (hundredths of Hz) per FFT bin
+        uint8_t max_freq_log2;   // log2(max_freq) * 16, decode: 2^(val/16)
+        uint8_t count;           // Number of valid bins returned
+    };
+
+    // Retrieve visualization bins with metadata for CRSF FFT frame
+    // Averages across axes selected by FFT_VIS_MASK parameter
+    bool get_visualization_bins(uint8_t* bins, uint8_t max_bins, VisualizationData& info) const;
+
+    // Get number of analysis bins (window_size / 2)
+    uint16_t get_analysis_bins() const;
+#endif
+
     // detected peak frequency
     const Vector3f& get_raw_noise_center_freq_hz() const { return _global_state._center_freq_hz; }
     // match between first and second harmonics
@@ -122,6 +144,14 @@ public:
     static const struct AP_Param::GroupInfo var_info[];
     static AP_GyroFFT *get_singleton() { return _singleton; }
 
+#if HAL_CRSF_TELEM_ENABLED
+    // Visualization setters (called from RC aux channels)
+    // Set starting bin for visualization
+    void set_vis_start_bin(uint8_t bin) { _config._vis_start_bin = bin; }
+    // Set bin width for visualization
+    void set_vis_bin_width(uint8_t width) { _config._vis_bin_width = MAX(width, 1); }
+#endif
+
 private:
     // configuration data local to the FFT thread but set from the main thread
     struct EngineConfig {
@@ -139,6 +169,12 @@ private:
         float _attenuation_cutoff;
         // SNR Threshold
         float _snr_threshold_db;
+#if HAL_CRSF_TELEM_ENABLED
+        // visualization start bin (from RC aux, default 0 for full spectrum)
+        uint8_t _vis_start_bin = 0;
+        // visualization bin width (from RC aux, default 1 for full resolution)
+        uint8_t _vis_bin_width = 1;
+#endif
     } _config;
 
     // smoothing filter that first takes the median from a sliding window and then
@@ -225,6 +261,16 @@ private:
         return _sample_mode == 0 ?_ins->get_raw_gyro_window(axis).available() : _downsampled_gyro_data[axis].available();
     }
     void update_parameters(bool force);
+
+#if HAL_CRSF_TELEM_ENABLED
+    // Visualization helpers for CRSF FFT telemetry
+    // Get starting bin for visualization
+    uint8_t get_vis_start_bin() const { return _config._vis_start_bin; }
+    // Get bin width for visualization
+    uint8_t get_vis_bin_width() const { return _config._vis_bin_width; }
+    // Update visualization bins for current axis during run_cycle()
+    void update_visualization_bins(const EngineConfig& config);
+#endif
     // semaphore for access to shared FFT data
     HAL_Semaphore _sem;
 
@@ -261,6 +307,15 @@ private:
         uint8_t _noise_needs_calibration : 3;
         // whether the analyzer is mid-cycle
         bool _analysis_started;
+#if HAL_CRSF_TELEM_ENABLED
+        // Visualization bins for CRSF telemetry
+        static constexpr uint8_t VIS_MAX_BINS = 54;
+        uint8_t _vis_bins[XYZ_AXIS_COUNT][VIS_MAX_BINS];
+        uint8_t _vis_count;
+        uint8_t _vis_start_bin;
+        uint8_t _vis_bin_width;
+        uint16_t _vis_bin_resolution;
+#endif
     };
 
     // Shared FFT engine state local to the FFT thread
@@ -358,6 +413,8 @@ private:
     AP_Int8 _num_frames;
     // mask of IMUs to record gyro frames after the filter bank
     AP_Int32 _options;
+    // bitmask of axes for visualization
+    AP_Int8 _vis_mask;
     AP_InertialSensor* _ins;
 #if DEBUG_FFT
     uint32_t _last_output_ms;

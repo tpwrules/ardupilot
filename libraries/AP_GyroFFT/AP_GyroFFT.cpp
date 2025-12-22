@@ -175,6 +175,13 @@ const AP_Param::GroupInfo AP_GyroFFT::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("OPTIONS", 15, AP_GyroFFT, _options, 0),
 
+    // @Param: VIS_MASK
+    // @DisplayName: FFT visualization axis mask
+    // @Description: Bitmask of gyro axes to include in CRSF FFT visualization. Set to 0 to disable visualization and save memory. Set to 7 to average all axes.
+    // @Bitmask: 0:X axis,1:Y axis,2:Z axis
+    // @User: Advanced
+    AP_GROUPINFO("VIS_MASK", 16, AP_GyroFFT, _vis_mask, 0),
+
     AP_GROUPEND
 };
 
@@ -471,6 +478,11 @@ uint16_t AP_GyroFFT::run_cycle()
     update_ref_energy(bin_max);
     calculate_noise(false, config);
 
+#if HAL_CRSF_TELEM_ENABLED
+    // Update visualization bins for CRSF telemetry
+    update_visualization_bins(config);
+#endif
+
     // record how we are doing
     _thread_state._last_output_us[_update_axis] = AP_HAL::micros();
     _output_cycle_micros = _thread_state._last_output_us[_update_axis] - now;
@@ -515,7 +527,13 @@ bool AP_GyroFFT::start_analysis() {
         return false;
     }
     // don't run any more gyro cycles once noise is calibrated and the self-test is running
-    if (!_thread_state._noise_needs_calibration && !_calibrated) {
+    // but continue if visualization is enabled (need fresh FFT data for display)
+#if HAL_CRSF_TELEM_ENABLED
+    const bool vis_enabled = _vis_mask.get() != 0;
+#else
+    const bool vis_enabled = false;
+#endif
+    if (!_thread_state._noise_needs_calibration && !_calibrated && !vis_enabled) {
         return false;
     }
 
@@ -1453,6 +1471,155 @@ float AP_GyroFFT::self_test(float frequency, FloatBuffer& test_window)
 
     return max_divergence;
 }
+
+#if HAL_CRSF_TELEM_ENABLED
+// Get number of analysis bins (window_size / 2)
+uint16_t AP_GyroFFT::get_analysis_bins() const
+{
+    return _state != nullptr ? _state->_bin_count : 0;
+}
+
+// Update visualization bins for current axis during run_cycle()
+// Computes PSD values and stores them in _thread_state._vis_bins
+void AP_GyroFFT::update_visualization_bins(const EngineConfig& config)
+{
+    // Skip if visualization is disabled (saves CPU cycles)
+    if (_vis_mask.get() == 0 || _state == nullptr) {
+        return;
+    }
+
+    const uint8_t axis = _update_axis;
+    const uint16_t bin_count = _state->_bin_count;
+    const uint8_t vis_max_bins = EngineState::VIS_MAX_BINS;
+
+    if (bin_count == 0) {
+        return;
+    }
+
+    // Interpret config._vis_bin_width as zoom_level (1-8)
+    // zoom 1 = zoomed out (show full spectrum)
+    // zoom 8 = zoomed in (show 1/8 of spectrum at highest resolution)
+    const uint8_t zoom_level = MAX(1, MIN(8, config._vis_bin_width));
+
+    // Calculate how many source bins to show
+    // zoom=1: show full spectrum (all bin_count bins)
+    // zoom=8: show 1/8 of spectrum (bin_count/8 bins, minimum vis_max_bins)
+    const uint16_t bins_to_show = MAX(vis_max_bins, bin_count / zoom_level);
+
+    // Calculate bin_width to fit bins_to_show into ~55 output buckets
+    // This ensures we always output close to vis_max_bins bars
+    const uint8_t bin_width = MAX(1, (bins_to_show + vis_max_bins - 1) / vis_max_bins);
+
+    // Calculate output count (should be close to vis_max_bins)
+    const uint8_t output_count = MIN(vis_max_bins, bins_to_show / bin_width);
+
+    if (output_count == 0) {
+        return;
+    }
+
+    // Pan controls where in the spectrum we start
+    // Clamp start_bin so we don't go past the end
+    const uint16_t max_start = (bin_count > bins_to_show) ? bin_count - bins_to_show : 0;
+    const uint16_t actual_start = MIN(config._vis_start_bin, max_start);
+
+    // Convert power spectrum to PSD in dB
+    // The freq_bins contain power (|X|² * window_scale) from step_cmplx_mag()
+    // To get PSD in (rad/s)²/Hz, divide by ENBW where ENBW = 1.5 * bin_resolution for Hann window
+    const float enbw = 1.5f * _state->_bin_resolution;
+    const float psd_scale = 1.0f / enbw;
+
+    // dB range: -70dB to +10dB maps to 0-255
+    const float DB_FLOOR = -70.0f;
+    const float DB_RANGE = 80.0f;
+
+    for (uint8_t out = 0; out < output_count; out++) {
+        // Find max energy in this bucket of source bins
+        const uint16_t src_start = actual_start + out * bin_width;
+        const uint16_t src_end = src_start + bin_width;
+
+        float bucket_max = 1e-20f;  // avoid log(0)
+        for (uint16_t src = src_start; src < src_end && src < bin_count; src++) {
+            const float energy = _state->get_freq_bin(src);
+            bucket_max = MAX(bucket_max, energy);
+        }
+
+        // Convert to PSD and then to dB
+        // bucket_max is already power (not magnitude), so no squaring needed
+        const float psd = bucket_max * psd_scale;
+        const float psd_db = 10.0f * log10f(psd);
+
+        // Normalize to 0-255 range
+        const float normalized = ((psd_db - DB_FLOOR) / DB_RANGE) * 255.0f;
+        _thread_state._vis_bins[axis][out] = (uint8_t)constrain_float(normalized, 0, 255);
+
+        // Debug: log first bin values periodically
+        if (out == 0 && axis == 0) {
+            static uint32_t last_log_ms;
+            if (AP_HAL::millis() - last_log_ms > 1000) {
+                last_log_ms = AP_HAL::millis();
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "FFT VIS: max=%.2e psd=%.2e dB=%.1f norm=%d",
+                              bucket_max, psd, psd_db, (int)normalized);
+            }
+        }
+    }
+
+    // Store metadata (same for all axes)
+    _thread_state._vis_count = output_count;
+    _thread_state._vis_start_bin = actual_start;
+    _thread_state._vis_bin_width = bin_width;
+    // Store bin_resolution in centiHz (hundredths of Hz) for precision
+    // e.g., 15.625 Hz becomes 1562 centiHz
+    _thread_state._vis_bin_resolution = (uint16_t)(_state->_bin_resolution * 100.0f);
+}
+
+// Retrieve visualization bins with metadata for CRSF FFT frame
+// Averages across axes selected by FFT_VIS_MASK parameter
+bool AP_GyroFFT::get_visualization_bins(uint8_t* bins, uint8_t max_bins, VisualizationData& info) const
+{
+    // Visualization disabled when mask is 0
+    if (_vis_mask.get() == 0 || !analysis_enabled() || _global_state._vis_count == 0) {
+        return false;
+    }
+
+    const uint8_t count = MIN(max_bins, _global_state._vis_count);
+    const uint8_t axis_mask = _vis_mask.get();
+
+    // Count enabled axes
+    uint8_t num_axes = 0;
+    for (uint8_t axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+        if (axis_mask & (1 << axis)) {
+            num_axes++;
+        }
+    }
+
+    if (num_axes == 0) {
+        return false;
+    }
+
+    // Average across selected axes
+    for (uint8_t i = 0; i < count; i++) {
+        uint16_t sum = 0;
+        for (uint8_t axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
+            if (axis_mask & (1 << axis)) {
+                sum += _global_state._vis_bins[axis][i];
+            }
+        }
+        bins[i] = sum / num_axes;
+    }
+
+    // Fill in metadata
+    info.start_bin = _global_state._vis_start_bin;
+    info.bin_width = _global_state._vis_bin_width;
+    info.bin_resolution = _global_state._vis_bin_resolution;
+    // Encode max_freq (Nyquist) as log2 * 16 for compact single-byte representation
+    // Decode on receiver: max_freq = 2^(val/16)
+    const float max_freq = _fft_sampling_rate_hz * 0.5f;
+    info.max_freq_log2 = (uint8_t)(log2f(max_freq) * 16.0f);
+    info.count = count;
+
+    return true;
+}
+#endif // HAL_CRSF_TELEM_ENABLED
 
 // singleton instance
 AP_GyroFFT *AP_GyroFFT::_singleton;
