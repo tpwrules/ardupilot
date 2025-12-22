@@ -105,6 +105,7 @@ public:
         // Custom Telemetry Frames 0x7F,0x80
         CRSF_FRAMETYPE_AP_CUSTOM_TELEM_LEGACY = 0x7F,   // as suggested by Remo Masina for fw < 4.06
         CRSF_FRAMETYPE_AP_CUSTOM_TELEM = 0x80,          // reserved for ArduPilot by TBS, requires fw >= 4.06
+        CRSF_FRAMETYPE_AP_FFT = 0x83,                   // FFT visualization data
     };
 
     // Command IDs for CRSF_FRAMETYPE_COMMAND
