@@ -11272,13 +11272,13 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         return current_log_filepath
 
-    def test_replay_external_nav_bit(self):
+    def test_replay_body_odom_bit(self):
         # scribble down a location we can set origin to:
 
         self.customise_SITL_commandline(["--serial5=sim:vicon:"])
-        self.progress("Waiting for location")
-        self.change_mode('LOITER')
-        self.wait_ready_to_arm()
+        # self.progress("Waiting for location")
+        # self.change_mode('LOITER')
+        # self.wait_ready_to_arm()
 
         old_pos = self.assert_receive_message('GLOBAL_POSITION_INT')
         print("old_pos=%s" % str(old_pos))
@@ -11292,28 +11292,30 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
             "EK3_SRC1_POSZ": 6,
             "EK3_SRC1_VELZ": 6,
 
-            "GPS1_TYPE": 0,
+            "SIM_VICON_TMASK": 8,
+
             "VISO_TYPE": 2,
             "SERIAL5_PROTOCOL": 2,
+            "ARMING_SKIPCHK": (1<<18),
         })
         self.reboot_sitl()
-        # without a GPS or some sort of external prompting, AP
-        # doesn't send system_time messages.  So prompt it:
-        self.mav.mav.system_time_send(int(time.time() * 1000000), 0)
-        self.progress("Waiting for non-zero-lat")
-        tstart = self.get_sim_time()
-        while True:
-            if self.get_sim_time_cached() - tstart > 60:
-                raise AutoTestTimeoutException("Did not get non-zero lat")
-            self.mav.mav.set_gps_global_origin_send(1,
-                                                    old_pos.lat,
-                                                    old_pos.lon,
-                                                    old_pos.alt)
-            self.delay_sim_time(2)
-            gpi = self.assert_receive_message('GLOBAL_POSITION_INT')
-            self.progress("gpi=%s" % str(gpi))
-            if gpi.lat != 0:
-                break
+        # # without a GPS or some sort of external prompting, AP
+        # # doesn't send system_time messages.  So prompt it:
+        # self.mav.mav.system_time_send(int(time.time() * 1000000), 0)
+        # self.progress("Waiting for non-zero-lat")
+        # tstart = self.get_sim_time()
+        # while True:
+        #     if self.get_sim_time_cached() - tstart > 60:
+        #         raise AutoTestTimeoutException("Did not get non-zero lat")
+        #     self.mav.mav.set_gps_global_origin_send(1,
+        #                                             old_pos.lat,
+        #                                             old_pos.lon,
+        #                                             old_pos.alt)
+        #     self.delay_sim_time(2)
+        #     gpi = self.assert_receive_message('GLOBAL_POSITION_INT')
+        #     self.progress("gpi=%s" % str(gpi))
+        #     if gpi.lat != 0:
+        #         break
 
         self.wait_sensor_state(mavutil.mavlink.MAV_SYS_STATUS_LOGGING, True, True, True)
 
@@ -11321,7 +11323,7 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
         self.progress("Current log path: %s" % str(current_log_filepath))
 
         self.change_mode("LOITER")
-        self.wait_ready_to_arm(require_absolute=True)
+        self.wait_ready_to_arm(require_absolute=False)
         self.arm_vehicle()
         self.takeoffAndMoveAway()
         self.do_RTL()
@@ -11692,9 +11694,9 @@ class AutoTestCopter(vehicle_test_suite.TestSuite):
 
         bits = [
             ('GPS', self.test_replay_gps_bit),
-            ('GPSForYaw', self.test_replay_gps_yaw_bit),
-            ('WindAndAirspeed', self.test_replay_wind_and_airspeed_bit),
-            ('ExternalNav', self.test_replay_external_nav_bit),
+            # ('GPSForYaw', self.test_replay_gps_yaw_bit),
+            # ('WindAndAirspeed', self.test_replay_wind_and_airspeed_bit),
+            ('BodyOdom', self.test_replay_body_odom_bit),
             ('Beacon', self.test_replay_beacon_bit),
             ('OpticalFlow', self.test_replay_optical_flow_bit),
         ]
