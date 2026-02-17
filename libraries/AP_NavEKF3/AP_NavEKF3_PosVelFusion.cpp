@@ -1421,6 +1421,7 @@ void NavEKF3_core::selectHeightForFusion()
 */
 void NavEKF3_core::FuseBodyVel()
 {
+    printf("FSUING BODY VEL\n");
     Vector24 H_VEL;
     Vector3F bodyVelPred;
 
