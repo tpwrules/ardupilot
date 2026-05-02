@@ -1136,7 +1136,7 @@ void NavEKF3_core::FuseDeclination(ftype declErr)
 
     // Calculate the observation Jacobian
     // Note only 2 terms are non-zero which can be used in matrix operations for calculation of Kalman gains and covariance update to significantly reduce cost
-    ftype Hfusion[24] = {};
+    Vector24 Hfusion;
     Hfusion[16] = -HK1*magE;
     Hfusion[17] = HK1*magN;
 
@@ -1184,18 +1184,7 @@ void NavEKF3_core::FuseDeclination(ftype declErr)
         innovation = -0.5f;
     }
 
-    // correct the covariance P = (I - K*H)*P = P - K*H*P. take advantage of
-    // the zero elements of H to reduce the number of operations.
-    for (unsigned i = 0; i<=stateIndexLim; i++) {
-        // j as the inner loop allows the compiler to hoist the KH product
-        // to save computation, and do the inner indexing more efficiently.
-        for (unsigned j = 0; j<=stateIndexLim; j++) {
-            ftype res = 0;
-            res += (Kfusion[i] * Hfusion[16]) * P[16][j];
-            res += (Kfusion[i] * Hfusion[17]) * P[17][j];
-            KHP[i][j] = res;
-        }
-    }
+    do_khp(Hfusion, 16, 17);
 
     // finish fusion from KHP and Kfusion then record health status
     faultStatus.bad_decl = FinishFusion(innovation);
