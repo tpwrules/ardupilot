@@ -879,7 +879,7 @@ bool NavEKF3_core::fuseEulerYaw(yawFusionMethod method)
 
     // calculate observation jacobian, predicted yaw and zero yaw body to earth rotation matrix
     ftype yawAngPredicted;
-    ftype H_YAW[4];
+    Vector24 H_YAW;
     Matrix3F Tbn_zeroYaw;
 
     if (order == rotationOrder::TAIT_BRYAN_321) {
