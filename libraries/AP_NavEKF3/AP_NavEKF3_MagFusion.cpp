@@ -1089,20 +1089,7 @@ bool NavEKF3_core::fuseEulerYaw(yawFusionMethod method)
         magHealth = true;
     }
 
-    // correct the covariance P = (I - K*H)*P = P - K*H*P. take advantage of
-    // the zero elements of H to reduce the number of operations.
-    for (unsigned i = 0; i<=stateIndexLim; i++) {
-        // j as the inner loop allows the compiler to hoist the KH product
-        // to save computation, and do the inner indexing more efficiently.
-        for (unsigned j = 0; j<=stateIndexLim; j++) {
-            ftype res = 0;
-            res += (Kfusion[i] * H_YAW[0]) * P[0][j];
-            res += (Kfusion[i] * H_YAW[1]) * P[1][j];
-            res += (Kfusion[i] * H_YAW[2]) * P[2][j];
-            res += (Kfusion[i] * H_YAW[3]) * P[3][j];
-            KHP[i][j] = res;
-        }
-    }
+    do_khp(H_YAW, 0, 1, 2, 3);
 
     const ftype innovFusion = constrain_ftype(innovYaw, -0.5f, 0.5f);
     // finish fusion from KHP and Kfusion then record health status

@@ -1674,4 +1674,28 @@ private:
     void Log_Write_State_Variances(uint64_t time_us);
     void Log_Write_Timing(uint64_t time_us);
     void Log_Write_GSF(uint64_t time_us);
+
+    __attribute__((always_inline)) void khp_acc(unsigned& i, unsigned& j, ftype& acc, const Vector24& H) {}; // base case
+    template <typename First, typename... Args>
+    __attribute__((always_inline)) void khp_acc(unsigned& i, unsigned& j, ftype& acc, const Vector24& H, const First first, const Args... args) {
+        acc += (Kfusion[i] * H[first]) * P[first][j];
+        khp_acc(i, j, acc, H, args...); // note: first does not appear here!
+    }
+
+    template <typename... Args>
+    __attribute__((always_inline)) void do_khp(const Vector24& H, const Args&&... args)
+    {
+        // correct the covariance P = (I - K*H)*P = P - K*H*P. take advantage of
+        // the zero elements of H to reduce the number of operations.
+        for (unsigned i = 0; i<=stateIndexLim; i++) {
+            // j as the inner loop allows the compiler to hoist the KH product
+            // to save computation, and do the inner indexing more efficiently.
+            for (unsigned j = 0; j<=stateIndexLim; j++) {
+                ftype res = 0;
+                khp_acc(i, j, res, H, args...);
+                KHP[i][j] = res;
+            }
+        }
+    }
+
 };
