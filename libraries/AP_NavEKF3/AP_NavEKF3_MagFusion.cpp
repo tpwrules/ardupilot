@@ -597,8 +597,6 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[17] = 2.0f*q0*q3 + 2.0f*q1*q2;
             H_MAG[18] = 2.0f*q1*q3 - 2.0f*q0*q2;
             H_MAG[19] = 1.0f;
-            H_MAG[20] = 0.0f;
-            H_MAG[21] = 0.0f;
             H_MAG_unit_index = 19;
 
             // calculate Kalman gain
@@ -657,9 +655,7 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[16] = 2.0f*q1*q2 - 2.0f*q0*q3;
             H_MAG[17] = SH_MAG[4] - SH_MAG[3] - SH_MAG[5] + SH_MAG[6];
             H_MAG[18] = 2.0f*q0*q1 + 2.0f*q2*q3;
-            H_MAG[19] = 0.0f;
             H_MAG[20] = 1.0f;
-            H_MAG[21] = 0.0f;
             H_MAG_unit_index = 20;
 
             // calculate Kalman gain
@@ -718,9 +714,7 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[3] = SH_MAG[0];
             H_MAG[16] = 2.0f*q0*q2 + 2.0f*q1*q3;
             H_MAG[17] = 2.0f*q2*q3 - 2.0f*q0*q1;
-            H_MAG[18] = SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6];
-            H_MAG[19] = 0.0f;
-            H_MAG[20] = 0.0f;
+            H_MAG[18] = SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6];;
             H_MAG[21] = 1.0f;
             H_MAG_unit_index = 21;
 
