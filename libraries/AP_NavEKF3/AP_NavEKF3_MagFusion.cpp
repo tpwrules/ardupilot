@@ -596,7 +596,6 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[16] = SH_MAG[5] - SH_MAG[4] - SH_MAG[3] + SH_MAG[6];
             H_MAG[17] = 2.0f*q0*q3 + 2.0f*q1*q2;
             H_MAG[18] = 2.0f*q1*q3 - 2.0f*q0*q2;
-            H_MAG[19] = 1.0f;
             H_MAG_unit_index = 19;
 
             // calculate Kalman gain
@@ -655,7 +654,6 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[16] = 2.0f*q1*q2 - 2.0f*q0*q3;
             H_MAG[17] = SH_MAG[4] - SH_MAG[3] - SH_MAG[5] + SH_MAG[6];
             H_MAG[18] = 2.0f*q0*q1 + 2.0f*q2*q3;
-            H_MAG[20] = 1.0f;
             H_MAG_unit_index = 20;
 
             // calculate Kalman gain
@@ -715,7 +713,6 @@ void NavEKF3_core::FuseMagnetometer()
             H_MAG[16] = 2.0f*q0*q2 + 2.0f*q1*q3;
             H_MAG[17] = 2.0f*q2*q3 - 2.0f*q0*q1;
             H_MAG[18] = SH_MAG[3] - SH_MAG[4] - SH_MAG[5] + SH_MAG[6];;
-            H_MAG[21] = 1.0f;
             H_MAG_unit_index = 21;
 
             // calculate Kalman gain
@@ -764,6 +761,7 @@ void NavEKF3_core::FuseMagnetometer()
             // this can be used by other fusion processes to avoid fusing on the same frame as this expensive step
             magFusePerformed = true;
         }
+        H_MAG[H_MAG_unit_index] = 1;
         // correct the covariance P = (I - K*H)*P = P - K*H*P. take advantage of
         // the zero elements of H to reduce the number of operations.
         for (unsigned i = 0; i<=stateIndexLim; i++) {
@@ -780,7 +778,7 @@ void NavEKF3_core::FuseMagnetometer()
                 res += (Kfusion[i] * H_MAG[18]) * P[18][j];
                 // one value in H is always 1, and the others not mentioned here
                 // are zero, so we can skip that H product to save an operation.
-                res += Kfusion[i] * P[H_MAG_unit_index][j];
+                res += (Kfusion[i] * H_MAG[H_MAG_unit_index]) * P[H_MAG_unit_index][j];
                 KHP[i][j] = res;
             }
         }
