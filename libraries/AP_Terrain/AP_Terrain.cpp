@@ -509,13 +509,28 @@ void AP_Terrain::log_terrain_data()
  */
 void AP_Terrain::allocate(void)
 {
-    cache = (struct grid_cache *)calloc(config_cache_size, sizeof(cache[0]));
-    if (cache == nullptr) {
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Terrain: Allocation failed");
-        memory_alloc_failed = true;
-        return;
+    struct grid_cache *next = nullptr;
+    int cache_size = config_cache_size;
+    for (auto i=0; i<cache_size; i++) {
+        struct grid_cache *head = (struct grid_cache *)malloc(sizeof(struct grid_cache));
+        if (head == nullptr) {
+            memory_alloc_failed = true;
+            break;
+        }
+        head->next = next;
+        next = head;
     }
-    cache_size = config_cache_size;
+    if (memory_alloc_failed || !next) { // fail if error or we never tried to allocate anything
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Terrain: Allocation failed");
+        while (next != nullptr) { // don't leak what we already allocated
+            struct grid_cache *head = next;
+            next = head->next;
+            free(head);
+        }
+        memory_alloc_failed = true;
+    } else { // success! make available for use
+        cache = next;
+    }
 }
 
 /*
